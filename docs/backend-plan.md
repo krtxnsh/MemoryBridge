@@ -807,8 +807,8 @@ flowchart TD
 - [x] **Phase 2: Scaffold** &rarr; Express, TypeScript, Docker Compose (Postgres), Prisma setup, `/health` endpoint.
 - [x] **Phase 3: Schema & Migrations** &rarr; Database migration and initial seed.
 - [x] **Phase 4: Auth & Access Control** &rarr; JWT, bcrypt, rate limiter, `requirePatientAccess`, tests passing.
-- [ ] **Phase 5: Core Domain APIs** &rarr; Memories, People, Relationships, Graph, Albums, Storybooks, Routine, Diary, Mira safety conversation.
-- [ ] **Phase 6: Media Pipeline** &rarr; Upload URL, confirm, signed URLs, StorageProvider (mock & Firebase).
+- [x] **Phase 5: Core Domain APIs** &rarr; Memories, People, Relationships, Graph, Albums, Storybooks, Routine, Diary, Mira safety conversation.
+- [x] **Phase 6: Media Pipeline** &rarr; Upload URL, confirm, signed URLs, StorageProvider (mock & Firebase).
 - [ ] **Phase 7: Frontend Integration** &rarr; `src/api/client.ts`, DTO adapters, AppContext integration, optional auth modal.
 - [ ] **Phase 8: Tests & E2E Run** &rarr; Full Vitest suite & browser E2E acceptance verification.
 - [ ] **Phase 9: Final Documentation** &rarr; `backend/README.md`, `.env.example`, final report.

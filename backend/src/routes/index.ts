@@ -8,6 +8,7 @@ import albumRoutes from './album.routes.js';
 import routineRoutes from './routine.routes.js';
 import diaryRoutes from './diary.routes.js';
 import conversationRoutes from './conversation.routes.js';
+import mediaRoutes from './media.routes.js';
 
 const router = Router();
 
@@ -27,5 +28,6 @@ router.use(albumRoutes);
 router.use(routineRoutes);
 router.use(diaryRoutes);
 router.use(conversationRoutes);
+router.use(mediaRoutes);
 
 export default router;
