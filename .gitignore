@@ -27,4 +27,5 @@ dist-ssr
 backend/.env
 backend/uploads/
 backend/node_modules
+backend/.pgdata
 

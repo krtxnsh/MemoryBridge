@@ -470,3 +470,4 @@ model AuditLog {
   @@index([actorId])
   @@index([createdAt])
 }
+

@@ -12,6 +12,9 @@ import { errorHandler } from './middleware/errorHandler.js';
 export function createApp(): Express {
   const app = express();
 
+  // Trust proxy for rate limiting (forwarded headers)
+  app.set('trust proxy', 1);
+
   // Security Headers
   app.use(helmet());
 
