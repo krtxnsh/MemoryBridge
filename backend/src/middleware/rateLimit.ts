@@ -14,6 +14,39 @@ export const authRateLimiter = rateLimit({
   }
 });
 
+// General API Rate Limiter
+export const generalApiRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, 'RATE_LIMIT_EXCEEDED', 'API rate limit exceeded. Please try again later.', 429);
+  }
+});
+
+// Stricter limiter on search routes
+export const searchRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, 'SEARCH_RATE_LIMIT_EXCEEDED', 'Search rate limit exceeded. Please wait a moment before searching again.', 429);
+  }
+});
+
+// Stricter limiter on write routes (create / update / delete)
+export const writeRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, 'WRITE_RATE_LIMIT_EXCEEDED', 'Write rate limit exceeded. Please try again in a few moments.', 429);
+  }
+});
+
 interface FailureRecord {
   count: number;
   firstFailedAt: number;

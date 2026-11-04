@@ -19,6 +19,10 @@ export function sendSuccess<T>(res: Response, data: T, statusCode: number = 200)
   return res.status(statusCode).json(body);
 }
 
+export function sendCreated<T>(res: Response, data: T): Response {
+  return sendSuccess(res, data, 201);
+}
+
 export function sendError(
   res: Response,
   code: string,
@@ -36,4 +40,3 @@ export function sendError(
   };
   return res.status(statusCode).json(body);
 }
-

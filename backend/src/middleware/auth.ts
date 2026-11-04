@@ -21,6 +21,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
   const token = authHeader.slice(7).trim();
 
+  // 1. Try User Access Token
   try {
     const payload = verifyAccessToken(token);
 
@@ -48,6 +49,28 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
     req.user = user;
     next();
+    return;
+  } catch (err: any) {
+    // If not a user token, check for patient session token
+  }
+
+  // 2. Try Patient Session Token
+  try {
+    const patientPayload = verifyPatientToken(token);
+    const session = await prisma.patientSession.findUnique({
+      where: { id: patientPayload.sub },
+      include: { patient: true }
+    });
+
+    if (!session || session.revokedAt !== null || new Date() > session.expiresAt || session.patient.deletedAt !== null) {
+      sendError(res, 'SESSION_REVOKED', 'Patient session has expired or been revoked.', 401);
+      return;
+    }
+
+    req.patientSession = session;
+    req.patient = session.patient;
+    next();
+    return;
   } catch (err: any) {
     sendError(res, 'INVALID_TOKEN', 'Invalid, expired, or malformed access token.', 401);
   }
@@ -71,12 +94,20 @@ export function requireRole(...allowedRoles: UserRole[]) {
 
 export type PatientIdResolver = (req: Request) => Promise<string | undefined> | string | undefined;
 
-export function requirePatientAccess(minRole: AccessRole, resolver?: PatientIdResolver) {
+export interface RequirePatientAccessOptions {
+  allowPatient?: boolean;
+  notFoundCode?: string;
+  notFoundMessage?: string;
+}
+
+export function requirePatientAccess(
+  minRole: AccessRole,
+  resolver?: PatientIdResolver,
+  options: RequirePatientAccessOptions = {}
+) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    if (!req.user) {
-      sendError(res, 'UNAUTHENTICATED', 'Authentication required.', 401);
-      return;
-    }
+    const notFoundCode = options.notFoundCode || 'PATIENT_NOT_FOUND';
+    const notFoundMessage = options.notFoundMessage || 'Patient resource not found.';
 
     // Resolve patientId
     let patientId: string | undefined;
@@ -87,7 +118,23 @@ export function requirePatientAccess(minRole: AccessRole, resolver?: PatientIdRe
     }
 
     if (!patientId) {
-      sendError(res, 'PATIENT_NOT_FOUND', 'Patient resource not found.', 404);
+      sendError(res, notFoundCode, notFoundMessage, 404);
+      return;
+    }
+
+    // Patient session token handling
+    if (req.patientSession) {
+      if (options.allowPatient && req.patientSession.patientId === patientId) {
+        next();
+        return;
+      }
+      sendError(res, notFoundCode, notFoundMessage, 404);
+      return;
+    }
+
+    // User handling
+    if (!req.user) {
+      sendError(res, 'UNAUTHENTICATED', 'Authentication required.', 401);
       return;
     }
 
@@ -101,7 +148,7 @@ export function requirePatientAccess(minRole: AccessRole, resolver?: PatientIdRe
 
     if (!patient) {
       // Return 404 to avoid leaking patient existence
-      sendError(res, 'PATIENT_NOT_FOUND', 'Patient resource not found.', 404);
+      sendError(res, notFoundCode, notFoundMessage, 404);
       return;
     }
 
@@ -117,7 +164,7 @@ export function requirePatientAccess(minRole: AccessRole, resolver?: PatientIdRe
 
     // ADMINs without PatientAccess record cannot see patient data (must return 404)
     if (!access) {
-      sendError(res, 'PATIENT_NOT_FOUND', 'Patient resource not found.', 404);
+      sendError(res, notFoundCode, notFoundMessage, 404);
       return;
     }
 
@@ -127,7 +174,7 @@ export function requirePatientAccess(minRole: AccessRole, resolver?: PatientIdRe
 
     if (callerRank < requiredRank) {
       // Return 404 (not 403) to prevent patient resource enumeration
-      sendError(res, 'PATIENT_NOT_FOUND', 'Patient resource not found.', 404);
+      sendError(res, notFoundCode, notFoundMessage, 404);
       return;
     }
 
@@ -175,4 +222,3 @@ export async function authenticatePatientSession(req: Request, res: Response, ne
     sendError(res, 'INVALID_SESSION_TOKEN', 'Invalid or expired patient session token.', 401);
   }
 }
-

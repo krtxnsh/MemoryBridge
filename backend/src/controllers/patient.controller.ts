@@ -1,46 +1,17 @@
 import { Request, Response, NextFunction } from 'express';
 import { AccessRole } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
-import { createPatientSchema, createPatientSessionSchema } from '../validators/auth.validator.js';
+import { patientService } from '../services/patient.service.js';
+import { createPatientSchema, updatePatientSchema, createPatientSessionSchema } from '../validators/patient.validator.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { signPatientToken } from '../utils/token.js';
-import { AppError } from '../middleware/errorHandler.js';
 
 export class PatientController {
   // GET /api/v1/patients
-  // Lists only patients the authenticated user has access to
   async listPatients(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user!.id;
-
-      const accessRecords = await prisma.patientAccess.findMany({
-        where: {
-          userId,
-          patient: {
-            deletedAt: null
-          }
-        },
-        include: {
-          patient: true
-        },
-        orderBy: {
-          createdAt: 'asc'
-        }
-      });
-
-      const patients = accessRecords.map((item) => ({
-        id: item.patient.id,
-        fullName: item.patient.fullName,
-        dateOfBirth: item.patient.dateOfBirth,
-        profileImage: item.patient.profileImage,
-        preferredLanguage: item.patient.preferredLanguage,
-        biography: item.patient.biography,
-        isDemo: item.patient.isDemo,
-        relationship: item.relationship,
-        accessRole: item.accessRole,
-        createdAt: item.patient.createdAt
-      }));
-
+      const patients = await patientService.listPatients(userId);
       sendSuccess(res, patients);
     } catch (err) {
       next(err);
@@ -48,64 +19,11 @@ export class PatientController {
   }
 
   // POST /api/v1/patients
-  // Transactionally creates PatientProfile + PatientAccess (OWNER) + AuditLog
   async createPatient(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user!.id;
       const validated = createPatientSchema.parse(req.body);
-
-      const result = await prisma.$transaction(async (tx) => {
-        // 1. Create PatientProfile
-        const patient = await tx.patientProfile.create({
-          data: {
-            fullName: validated.fullName,
-            dateOfBirth: validated.dateOfBirth ? new Date(validated.dateOfBirth) : null,
-            profileImage: validated.profileImage || null,
-            preferredLanguage: validated.preferredLanguage,
-            biography: validated.biography || null,
-            isDemo: false
-          }
-        });
-
-        // 2. Grant creator OWNER access
-        const access = await tx.patientAccess.create({
-          data: {
-            userId,
-            patientId: patient.id,
-            relationship: validated.relationship,
-            accessRole: AccessRole.OWNER
-          }
-        });
-
-        // 3. Write AuditLog
-        await tx.auditLog.create({
-          data: {
-            actorId: userId,
-            patientId: patient.id,
-            action: 'CREATE_PATIENT',
-            resourceType: 'PatientProfile',
-            resourceId: patient.id,
-            metadata: {
-              fullName: patient.fullName,
-              accessRole: access.accessRole
-            }
-          }
-        });
-
-        return {
-          id: patient.id,
-          fullName: patient.fullName,
-          dateOfBirth: patient.dateOfBirth,
-          profileImage: patient.profileImage,
-          preferredLanguage: patient.preferredLanguage,
-          biography: patient.biography,
-          isDemo: patient.isDemo,
-          relationship: access.relationship,
-          accessRole: access.accessRole,
-          createdAt: patient.createdAt
-        };
-      });
-
+      const result = await patientService.createPatient(userId, validated);
       sendSuccess(res, result, 201);
     } catch (err) {
       next(err);
@@ -113,31 +31,47 @@ export class PatientController {
   }
 
   // GET /api/v1/patients/:patientId
-  // Guaranteed by requirePatientAccess('VIEWER')
   async getPatient(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const patient = req.patient!;
-      const access = req.patientAccess!;
+      const patientId = req.params.patientId as string;
+      const userId = req.user?.id;
+      const isPatientSession = !!req.patientSession;
 
-      sendSuccess(res, {
-        id: patient.id,
-        fullName: patient.fullName,
-        dateOfBirth: patient.dateOfBirth,
-        profileImage: patient.profileImage,
-        preferredLanguage: patient.preferredLanguage,
-        biography: patient.biography,
-        isDemo: patient.isDemo,
-        relationship: access.relationship,
-        accessRole: access.accessRole,
-        createdAt: patient.createdAt
-      });
+      const patient = await patientService.getPatient(patientId, userId, isPatientSession);
+      sendSuccess(res, patient);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // PATCH /api/v1/patients/:patientId
+  async updatePatient(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const patientId = req.params.patientId as string;
+      const userId = req.user!.id;
+      const validated = updatePatientSchema.parse(req.body);
+
+      const updated = await patientService.updatePatient(patientId, userId, validated);
+      sendSuccess(res, updated);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // DELETE /api/v1/patients/:patientId
+  async deletePatient(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const patientId = req.params.patientId as string;
+      const userId = req.user!.id;
+
+      const deleted = await patientService.deletePatient(patientId, userId);
+      sendSuccess(res, deleted);
     } catch (err) {
       next(err);
     }
   }
 
   // POST /api/v1/patients/:patientId/patient-sessions
-  // Guaranteed by requirePatientAccess('CAREGIVER')
   async createPatientSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const patient = req.patient!;
@@ -154,7 +88,6 @@ export class PatientController {
         }
       });
 
-      // Write AuditLog
       await prisma.auditLog.create({
         data: {
           actorId: userId,
@@ -169,7 +102,6 @@ export class PatientController {
         }
       });
 
-      // Issue revocable typ: "patient" token
       const sessionToken = signPatientToken(session.id, patient.id, expiresAt);
 
       sendSuccess(
@@ -191,7 +123,6 @@ export class PatientController {
   }
 
   // GET /api/v1/patients/:patientId/patient-sessions
-  // Guaranteed by requirePatientAccess('CAREGIVER')
   async listPatientSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const patient = req.patient!;
@@ -200,13 +131,9 @@ export class PatientController {
         where: {
           patientId: patient.id,
           revokedAt: null,
-          expiresAt: {
-            gt: new Date()
-          }
+          expiresAt: { gt: new Date() }
         },
-        orderBy: {
-          createdAt: 'desc'
-        },
+        orderBy: { createdAt: 'desc' },
         select: {
           id: true,
           patientId: true,
@@ -238,7 +165,6 @@ export class PatientController {
         return;
       }
 
-      // Check caller has CAREGIVER access to owning patient
       const access = await prisma.patientAccess.findUnique({
         where: {
           userId_patientId: {
@@ -255,12 +181,9 @@ export class PatientController {
 
       const updated = await prisma.patientSession.update({
         where: { id: sessionId },
-        data: {
-          revokedAt: new Date()
-        }
+        data: { revokedAt: new Date() }
       });
 
-      // Write AuditLog
       await prisma.auditLog.create({
         data: {
           actorId: userId,
@@ -283,4 +206,3 @@ export class PatientController {
 }
 
 export const patientController = new PatientController();
-
