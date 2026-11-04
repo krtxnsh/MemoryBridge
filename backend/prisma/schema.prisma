@@ -1,0 +1,472 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  ADMIN
+  CAREGIVER
+  FAMILY_MEMBER
+}
+
+enum AccessRole {
+  OWNER
+  CAREGIVER
+  FAMILY
+  VIEWER
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  AI_SUGGESTED
+}
+
+enum MemorySource {
+  FAMILY_SUBMITTED
+  CAREGIVER
+  AI_DRAFTED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+}
+
+enum StorybookStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum RoutinePeriod {
+  MORNING
+  AFTERNOON
+  EVENING
+}
+
+enum RoutineCategory {
+  ACTIVITY
+  MEAL
+  MEDICATION
+  FAMILY_CALL
+  WALK
+}
+
+enum ReminderStatus {
+  ACTIVE
+  DISMISSED
+}
+
+enum SenderType {
+  USER
+  COMPANION
+}
+
+enum EmbeddingStatus {
+  NONE
+  PENDING
+  READY
+}
+
+model User {
+  id               String               @id @default(uuid())
+  email            String               @unique
+  name             String
+  passwordHash     String
+  role             UserRole             @default(FAMILY_MEMBER)
+  tokenVersion     Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  patientAccess    PatientAccess[]
+  createdMemories  Memory[]             @relation("MemoryCreator")
+  approvedMemories Memory[]             @relation("ApprovedMemories")
+  verifications    Verification[]
+  createdStorybooks Storybook[]
+  patientSessions  PatientSession[]
+  pairingCodes     PatientPairingCode[]
+  auditLogs        AuditLog[]
+  mediaUploads     Media[]
+  refreshTokens    RefreshToken[]
+
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  family    String   // Rotation family id
+  isRevoked Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([family])
+}
+
+model PatientProfile {
+  id                String               @id @default(uuid())
+  fullName          String
+  dateOfBirth       DateTime?
+  profileImage      String?
+  preferredLanguage String               @default("en")
+  biography         String?
+  personId          String?              @unique // Link to self person entry
+  isDemo            Boolean              @default(false)
+  deletedAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  selfPerson        Person?              @relation("PatientSelfPerson", fields: [personId], references: [id], onDelete: SetNull)
+  accessList        PatientAccess[]
+  memories          Memory[]
+  albums            Album[]
+  people            Person[]             @relation("PatientPeople")
+  relationships     Relationship[]
+  storybooks        Storybook[]
+  routineItems      RoutineItem[]
+  diaryEntries      DiaryEntry[]
+  conversations     Conversation[]
+  patientSessions   PatientSession[]
+  pairingCodes      PatientPairingCode[]
+  media             Media[]
+  auditLogs         AuditLog[]
+
+  @@index([fullName])
+  @@index([isDemo])
+}
+
+model PatientAccess {
+  id           String         @id @default(uuid())
+  userId       String
+  patientId    String
+  relationship String         // e.g. "Wife", "Daughter", "Primary Caregiver"
+  accessRole   AccessRole     @default(FAMILY)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  patient      PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, patientId])
+  @@index([userId])
+  @@index([patientId])
+}
+
+model Memory {
+  id                 String             @id @default(uuid())
+  patientId          String
+  albumId            String?
+  title              String
+  description        String?
+  story              String
+  audioDescription   String?
+  eventDate          DateTime?
+  approximateYear    Int?
+  location           String?
+  eventType          String?
+  era                String             // Childhood, First School, College, Career, Wedding & Family, Golden Years
+  tags               String[]           @default([])
+  source             MemorySource       @default(FAMILY_SUBMITTED)
+  verificationStatus VerificationStatus @default(PENDING)
+  approvedById       String?
+  songId             String?
+  mapX               Float?
+  mapY               Float?
+  mapLabel           String?
+  contentHash        String?
+  embeddingStatus    EmbeddingStatus    @default(NONE)
+  deletedAt          DateTime?
+  createdBy          String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  patient            PatientProfile     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  album              Album?             @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  creator            User               @relation("MemoryCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  approvedBy         User?              @relation("ApprovedMemories", fields: [approvedById], references: [id], onDelete: SetNull)
+  people             MemoryPeople[]
+  media              Media[]
+  storybookMemories  StorybookMemories[]
+  verifications      Verification[]
+  relatedMessages    Message[]
+
+  @@index([patientId])
+  @@index([patientId, verificationStatus])
+  @@index([albumId])
+  @@index([approximateYear])
+  @@index([era])
+  @@index([createdBy])
+  @@index([approvedById])
+}
+
+model Album {
+  id          String         @id @default(uuid())
+  patientId   String
+  title       String
+  coverImage  String?
+  colorTheme  String         @default("amber")
+  yearRange   String?
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  patient     PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  memories    Memory[]
+
+  @@index([patientId])
+}
+
+model Person {
+  id                 String          @id @default(uuid())
+  patientId          String
+  fullName           String
+  biography          String?
+  birthYear          Int?
+  profileImage       String?
+  confirmedByFamily  Boolean         @default(true)
+  deletedAt          DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  patient            PatientProfile  @relation("PatientPeople", fields: [patientId], references: [id], onDelete: Cascade)
+  asSelfProfile      PatientProfile? @relation("PatientSelfPerson")
+  memories           MemoryPeople[]
+  relationshipsAsOne Relationship[]  @relation("PersonOne")
+  relationshipsAsTwo Relationship[]  @relation("PersonTwo")
+
+  @@index([patientId])
+}
+
+model Relationship {
+  id               String         @id @default(uuid())
+  patientId        String
+  personOneId      String
+  personTwoId      String
+  relationshipType String         // e.g. "Spouse", "Parent", "Child", "Friend"
+  description      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  personOne        Person         @relation("PersonOne", fields: [personOneId], references: [id], onDelete: Cascade)
+  personTwo        Person         @relation("PersonTwo", fields: [personTwoId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, personOneId, personTwoId, relationshipType])
+  @@index([patientId])
+  @@index([personOneId])
+  @@index([personTwoId])
+}
+
+model MemoryPeople {
+  memoryId  String
+  personId  String
+
+  memory    Memory   @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([memoryId, personId])
+  @@index([memoryId])
+  @@index([personId])
+}
+
+model Storybook {
+  id             String              @id @default(uuid())
+  patientId      String
+  title          String
+  description    String?
+  coverImage     String?
+  generatedStory String?
+  status         StorybookStatus     @default(DRAFT)
+  createdBy      String
+  deletedAt      DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  patient        PatientProfile      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  creator        User                @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  memories       StorybookMemories[]
+
+  @@index([patientId])
+  @@index([createdBy])
+}
+
+model StorybookMemories {
+  id            String    @id @default(uuid())
+  storybookId   String
+  memoryId      String
+  sequenceOrder Int
+
+  storybook     Storybook @relation(fields: [storybookId], references: [id], onDelete: Cascade)
+  memory        Memory    @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@unique([storybookId, sequenceOrder])
+  @@index([storybookId])
+  @@index([memoryId])
+}
+
+model Verification {
+  id           String             @id @default(uuid())
+  memoryId     String
+  verifiedById String
+  status       VerificationStatus
+  comments     String?
+  createdAt    DateTime           @default(now())
+
+  memory       Memory             @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  verifier     User               @relation(fields: [verifiedById], references: [id], onDelete: Restrict)
+
+  @@index([memoryId])
+  @@index([verifiedById])
+}
+
+model Media {
+  id            String         @id @default(uuid())
+  patientId     String
+  memoryId      String?
+  mediaType     MediaType
+  storagePath   String         // Object key in storage
+  thumbnailPath String?
+  fileName      String
+  mimeType      String
+  sizeBytes     Int
+  caption       String?
+  uploadedBy    String
+  deletedAt     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  memory        Memory?        @relation(fields: [memoryId], references: [id], onDelete: SetNull)
+  uploader      User           @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
+
+  @@index([patientId])
+  @@index([memoryId])
+  @@index([uploadedBy])
+}
+
+model RoutineItem {
+  id             String          @id @default(uuid())
+  patientId      String
+  title          String
+  scheduledTime  String          // Stored as HH:mm 24-hour format, e.g. "08:30"
+  period         RoutinePeriod
+  category       RoutineCategory
+  notes          String?
+  completed      Boolean         @default(false)
+  reminderStatus ReminderStatus  @default(ACTIVE)
+  createdBy      String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  patient        PatientProfile  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model DiaryEntry {
+  id            String         @id @default(uuid())
+  patientId     String
+  date          DateTime       @db.Date
+  weather       String
+  greeting      String
+  morningNote   String
+  afternoonNote String
+  eveningNote   String
+  caregiverSign String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, date])
+  @@index([patientId])
+}
+
+model Conversation {
+  id               String          @id @default(uuid())
+  patientId        String
+  userId           String?
+  patientSessionId String?
+  createdAt        DateTime        @default(now())
+
+  patient          PatientProfile  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  messages         Message[]
+
+  @@index([patientId])
+}
+
+model Message {
+  id              String       @id @default(uuid())
+  conversationId  String
+  senderType      SenderType
+  messageText     String
+  relatedMemoryId String?
+  createdAt       DateTime     @default(now())
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  relatedMemory   Memory?      @relation(fields: [relatedMemoryId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@index([relatedMemoryId])
+}
+
+model PatientSession {
+  id        String         @id @default(uuid())
+  patientId String
+  createdBy String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime       @default(now())
+
+  patient   PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  creator   User           @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@index([patientId])
+  @@index([expiresAt])
+  @@index([createdBy])
+}
+
+model PatientPairingCode {
+  id        String         @id @default(uuid())
+  patientId String
+  codeHash  String         @unique
+  createdBy String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime       @default(now())
+
+  patient   PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  creator   User           @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@index([patientId])
+  @@index([expiresAt])
+  @@index([createdBy])
+}
+
+model AuditLog {
+  id           String         @id @default(uuid())
+  actorId      String?
+  patientId    String
+  action       String         // e.g. "VERIFY_MEMORY", "DELETE_PERSON", "MEDIA_READ"
+  resourceType String         // e.g. "Memory", "Media", "PatientAccess"
+  resourceId   String
+  metadata     Json?
+  createdAt    DateTime       @default(now())
+
+  patient      PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  actor        User?          @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@index([actorId])
+  @@index([createdAt])
+}
