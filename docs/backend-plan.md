@@ -803,10 +803,10 @@ flowchart TD
     P8 --> P9[Phase 9: Documentation & Handover]
 ```
 
-- [x] **Phase 1: Inspect & Plan** &rarr; **CURRENT (Paused for User Approval at Checkpoint 1)**
-- [ ] **Phase 2: Scaffold** &rarr; Express, TypeScript, Docker Compose (Postgres), Prisma setup, `/health` endpoint.
-- [ ] **Phase 3: Schema & Migrations** &rarr; Database migration and initial seed. *(⏸ Checkpoint 2 Review)*
-- [ ] **Phase 4: Auth & Access Control** &rarr; JWT, bcrypt, rate limiter, `requirePatientAccess`, tests passing. *(⏸ Checkpoint 3 Review)*
+- [x] **Phase 1: Inspect & Plan** &rarr; Complete
+- [x] **Phase 2: Scaffold** &rarr; Express, TypeScript, Docker Compose (Postgres), Prisma setup, `/health` endpoint.
+- [x] **Phase 3: Schema & Migrations** &rarr; Database migration and initial seed.
+- [x] **Phase 4: Auth & Access Control** &rarr; JWT, bcrypt, rate limiter, `requirePatientAccess`, tests passing.
 - [ ] **Phase 5: Core Domain APIs** &rarr; Memories, People, Relationships, Graph, Albums, Storybooks, Routine, Diary, Mira safety conversation.
 - [ ] **Phase 6: Media Pipeline** &rarr; Upload URL, confirm, signed URLs, StorageProvider (mock & Firebase).
 - [ ] **Phase 7: Frontend Integration** &rarr; `src/api/client.ts`, DTO adapters, AppContext integration, optional auth modal.

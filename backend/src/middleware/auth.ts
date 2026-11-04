@@ -176,3 +176,78 @@ export async function authenticatePatientSession(req: Request, res: Response, ne
   }
 }
 
+export function authenticateUserOrPatient(minRole: AccessRole = AccessRole.VIEWER) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      sendError(res, 'UNAUTHENTICATED', 'Authentication required.', 401);
+      return;
+    }
+
+    const token = authHeader.slice(7).trim();
+
+    // 1. Try Patient Token first
+    try {
+      const patientPayload = verifyPatientToken(token);
+      const session = await prisma.patientSession.findUnique({
+        where: { id: patientPayload.sub },
+        include: { patient: true }
+      });
+
+      if (!session || session.revokedAt !== null || new Date() > session.expiresAt || session.patient.deletedAt !== null) {
+        sendError(res, 'SESSION_REVOKED', 'Patient session has expired or been revoked.', 401);
+        return;
+      }
+
+      req.patientSession = session;
+      req.patient = session.patient;
+      next();
+      return;
+    } catch {
+      // Not a patient token, fallback to user token
+    }
+
+    // 2. Try User Access Token
+    try {
+      const userPayload = verifyAccessToken(token);
+      const user = await prisma.user.findUnique({
+        where: { id: userPayload.sub }
+      });
+
+      if (!user || user.tokenVersion !== userPayload.tokenVersion) {
+        sendError(res, 'TOKEN_REVOKED', 'Session expired or revoked.', 401);
+        return;
+      }
+
+      req.user = user;
+
+      const patientId = (req.params.patientId || req.body?.patientId || req.query?.patientId) as string | undefined;
+      if (patientId) {
+        const patient = await prisma.patientProfile.findFirst({
+          where: { id: patientId, deletedAt: null }
+        });
+        if (!patient) {
+          sendError(res, 'PATIENT_NOT_FOUND', 'Patient resource not found.', 404);
+          return;
+        }
+
+        const access = await prisma.patientAccess.findUnique({
+          where: { userId_patientId: { userId: user.id, patientId: patient.id } }
+        });
+
+        if (!access || ACCESS_ROLE_RANK[access.accessRole] < ACCESS_ROLE_RANK[minRole]) {
+          sendError(res, 'PATIENT_NOT_FOUND', 'Patient resource not found.', 404);
+          return;
+        }
+
+        req.patient = patient;
+        req.patientAccess = access;
+      }
+
+      next();
+    } catch {
+      sendError(res, 'INVALID_TOKEN', 'Invalid or expired authentication token.', 401);
+    }
+  };
+}
+
