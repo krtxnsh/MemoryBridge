@@ -8,6 +8,13 @@ import {
   INITIAL_SONGS,
   INITIAL_DIARY
 } from '../data/mockData';
+import {
+  apiClient,
+  getActivePatientId,
+  setActivePatientId,
+  getAccessToken,
+  getPatientToken
+} from '../api/client';
 
 const STORAGE_KEY = 'memorybridge_store_v1';
 
@@ -119,6 +126,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Toast
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
+  // Initial Sync from Backend API (if not mock mode)
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDataFromApi() {
+      if (import.meta.env.VITE_USE_MOCK === 'true') {
+        return;
+      }
+
+      try {
+        let patientId = getActivePatientId();
+
+        // If no credentials, auto-login with default seeded demo caregiver for zero-friction launch
+        if (!getAccessToken() && !getPatientToken()) {
+          try {
+            await apiClient.auth.login('anita@example.com', 'Password123!');
+            const patients = await apiClient.patients.list();
+            if (patients && patients.length > 0 && patients[0]?.id) {
+              const firstPatientId = String(patients[0].id);
+              patientId = firstPatientId;
+              setActivePatientId(firstPatientId);
+            }
+          } catch {
+            // Backend offline, fallback to local storage
+            return;
+          }
+        }
+
+        const currentPatientId = patientId;
+        if (currentPatientId && isMounted) {
+          const [apiMemories, apiPeople, apiAlbums, apiRoutine, apiDiary] = await Promise.all([
+            apiClient.memories.list(currentPatientId).catch(() => null),
+            apiClient.people.list(currentPatientId).catch(() => null),
+            apiClient.albums.list(currentPatientId).catch(() => null),
+            apiClient.routine.list(currentPatientId).catch(() => null),
+            apiClient.diary.get(currentPatientId).catch(() => null)
+          ]);
+
+          if (isMounted) {
+            if (apiMemories && apiMemories.length > 0) setMemories(apiMemories);
+            if (apiPeople && apiPeople.length > 0) setPeople(apiPeople);
+            if (apiAlbums && apiAlbums.length > 0) setAlbums(apiAlbums);
+            if (apiRoutine && apiRoutine.length > 0) setRoutine(apiRoutine);
+            if (apiDiary) setDiary(apiDiary);
+          }
+        }
+      } catch (err) {
+        console.warn('API sync: retaining local store state', err);
+      }
+    }
+
+    loadDataFromApi();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Sync state to localStorage
   useEffect(() => {
     try {
@@ -151,65 +214,132 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addMemory = (mem: Omit<Memory, 'id'>): string => {
-    const newId = `mem-${Date.now()}`;
-    const newMemory: Memory = { ...mem, id: newId };
+    const tempId = `mem-${Date.now()}`;
+    const newMemory: Memory = { ...mem, id: tempId };
     setMemories(prev => [newMemory, ...prev]);
 
     // Update album count
     setAlbums(prev => prev.map(a => a.id === mem.albumId ? { ...a, memoryCount: a.memoryCount + 1 } : a));
 
     showToast(`Memory "${mem.title}" saved successfully!`, 'success');
-    return newId;
+
+    // Sync to backend API asynchronously
+    const targetPatientId = getActivePatientId();
+    if (targetPatientId && import.meta.env.VITE_USE_MOCK !== 'true') {
+      apiClient.memories.create(targetPatientId, mem).then((saved) => {
+        setMemories(prev => prev.map(m => m.id === tempId ? saved : m));
+      }).catch(err => console.warn('Backend sync memory create:', err));
+    }
+
+    return tempId;
   };
 
   const updateMemory = (id: string, updates: Partial<Memory>) => {
     setMemories(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
     showToast('Memory updated.', 'info');
+
+    if (import.meta.env.VITE_USE_MOCK !== 'true') {
+      apiClient.memories.update(id, updates).catch(err => console.warn('Backend sync memory update:', err));
+    }
   };
 
   const deleteMemory = (id: string) => {
     setMemories(prev => prev.filter(m => m.id !== id));
     showToast('Memory removed.', 'amber');
+
+    if (import.meta.env.VITE_USE_MOCK !== 'true') {
+      apiClient.memories.delete(id).catch(err => console.warn('Backend sync memory delete:', err));
+    }
   };
 
   const approveMemory = (id: string, approverName: string = 'Anita') => {
     setMemories(prev => prev.map(m => m.id === id ? { ...m, status: 'verified', approvedBy: approverName } : m));
     showToast('Memory verified! It is now accessible to the patient and AI companion.', 'success');
+
+    if (import.meta.env.VITE_USE_MOCK !== 'true') {
+      apiClient.memories.verify(id).catch(err => console.warn('Backend sync memory verify:', err));
+    }
   };
 
   const rejectMemory = (id: string) => {
     setMemories(prev => prev.filter(m => m.id !== id));
     showToast('Draft memory declined.', 'info');
+
+    if (import.meta.env.VITE_USE_MOCK !== 'true') {
+      apiClient.memories.reject(id).catch(err => console.warn('Backend sync memory reject:', err));
+    }
   };
 
   const addPerson = (person: Omit<Person, 'id'>) => {
-    const newPerson: Person = { ...person, id: `p-${Date.now()}` };
+    const tempId = `p-${Date.now()}`;
+    const newPerson: Person = { ...person, id: tempId };
     setPeople(prev => [...prev, newPerson]);
     showToast(`${person.name} added to family circle.`, 'success');
+
+    const targetPatientId = getActivePatientId();
+    if (targetPatientId && import.meta.env.VITE_USE_MOCK !== 'true') {
+      apiClient.people.create(targetPatientId, person).then((saved) => {
+        setPeople(prev => prev.map(p => p.id === tempId ? saved : p));
+      }).catch(err => console.warn('Backend sync person create:', err));
+    }
   };
 
   const updatePerson = (id: string, updates: Partial<Person>) => {
     setPeople(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     showToast('Family profile updated.', 'info');
+
+    if (import.meta.env.VITE_USE_MOCK !== 'true') {
+      apiClient.people.update(id, updates).catch(err => console.warn('Backend sync person update:', err));
+    }
   };
 
   const addRoutineItem = (item: Omit<RoutineItem, 'id'>) => {
-    const newItem: RoutineItem = { ...item, id: `rout-${Date.now()}` };
+    const tempId = `rout-${Date.now()}`;
+    const newItem: RoutineItem = { ...item, id: tempId };
     setRoutine(prev => [...prev, newItem]);
     showToast('Routine reminder added.', 'success');
+
+    const targetPatientId = getActivePatientId();
+    if (targetPatientId && import.meta.env.VITE_USE_MOCK !== 'true') {
+      apiClient.routine.create(targetPatientId, item).then((saved) => {
+        setRoutine(prev => prev.map(r => r.id === tempId ? saved : r));
+      }).catch(err => console.warn('Backend sync routine create:', err));
+    }
   };
 
   const toggleRoutineCompleted = (id: string) => {
-    setRoutine(prev => prev.map(r => r.id === id ? { ...r, completed: !r.completed } : r));
+    setRoutine(prev => {
+      const target = prev.find(r => r.id === id);
+      const nextCompleted = target ? !target.completed : false;
+
+      if (import.meta.env.VITE_USE_MOCK !== 'true') {
+        apiClient.routine.toggleComplete(id, nextCompleted).catch(err => console.warn('Backend sync toggle routine:', err));
+      }
+
+      return prev.map(r => r.id === id ? { ...r, completed: nextCompleted } : r);
+    });
   };
 
   const deleteRoutineItem = (id: string) => {
     setRoutine(prev => prev.filter(r => r.id !== id));
     showToast('Routine item removed.', 'info');
+
+    if (import.meta.env.VITE_USE_MOCK !== 'true') {
+      apiClient.routine.delete(id).catch(err => console.warn('Backend sync routine delete:', err));
+    }
   };
 
   const updateDiary = (updates: Partial<DiaryEntry>) => {
-    setDiary(prev => ({ ...prev, ...updates }));
+    setDiary(prev => {
+      const merged = { ...prev, ...updates };
+
+      const targetPatientId = getActivePatientId();
+      if (targetPatientId && import.meta.env.VITE_USE_MOCK !== 'true') {
+        apiClient.diary.upsert(targetPatientId, merged).catch(err => console.warn('Backend sync diary update:', err));
+      }
+
+      return merged;
+    });
     showToast('Diary entry updated.', 'success');
   };
 

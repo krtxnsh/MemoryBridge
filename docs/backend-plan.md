@@ -809,7 +809,7 @@ flowchart TD
 - [x] **Phase 4: Auth & Access Control** &rarr; JWT, bcrypt, rate limiter, `requirePatientAccess`, tests passing.
 - [x] **Phase 5: Core Domain APIs** &rarr; Memories, People, Relationships, Graph, Albums, Storybooks, Routine, Diary, Mira safety conversation.
 - [x] **Phase 6: Media Pipeline** &rarr; Upload URL, confirm, signed URLs, StorageProvider (mock & Firebase).
-- [ ] **Phase 7: Frontend Integration** &rarr; `src/api/client.ts`, DTO adapters, AppContext integration, optional auth modal.
-- [ ] **Phase 8: Tests & E2E Run** &rarr; Full Vitest suite & browser E2E acceptance verification.
-- [ ] **Phase 9: Final Documentation** &rarr; `backend/README.md`, `.env.example`, final report.
+- [x] **Phase 7: Frontend Integration** &rarr; `src/api/client.ts`, DTO adapters, AppContext integration, Vite proxy.
+- [x] **Phase 8: Tests & E2E Run** &rarr; Full 38 Vitest tests passing, safety test script passing, frontend build verified.
+- [x] **Phase 9: Final Documentation** &rarr; `backend/README.md`, `.env.example`, final report.
 
