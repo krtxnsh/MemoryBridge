@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: #F36B32;
+    --primary-hover: #D95424;
+    --primary-text: #B8431A;
+    --warm-white: #FFFDF9;
+    --warm-cream: #F8F1E8;
+    --warm-peach: #FDEEE4;
+    --warm-sky: #EBF4F6;
+    --warm-yellow: #FEF8E7;
+    --ink-primary: #292521;
+    --ink-secondary: #77716B;
+    --border-soft: #E9E3DC;
+  }
+
+  body {
+    background-color: #FFFDF9;
+    color: #292521;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  /* Accessible focus ring */
+  *:focus-visible {
+    outline: 3px solid #F36B32 !important;
+    outline-offset: 3px !important;
+  }
+}
+
+/* Custom scrollbars for clean emotional feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F8F1E8;
+}
+::-webkit-scrollbar-thumb {
+  background: #E0D4C5;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C8B9A6;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Warm background gradient utility matching Sofia references */
+.bg-warm-wash {
+  background: radial-gradient(circle at 10% 20%, #FFFDF9 0%, #FEF8E7 35%, #FDEEE4 70%, #EBF4F6 100%);
+}
+
+.bg-tablet-frame {
+  background: radial-gradient(circle at top left, #FFF8F0 0%, #FDF3E7 40%, #F5EAE0 100%);
+}
+
+/* Soft 3D book covers */
+.book-spine-left {
+  box-shadow: inset 10px 0 15px -5px rgba(0,0,0,0.2), 4px 6px 18px rgba(41, 37, 33, 0.15);
+}
+
+.paper-texture {
+  background-color: #FFFDF9;
+  background-image: radial-gradient(#E8DFC8 0.75px, transparent 0.75px);
+  background-size: 16px 16px;
+}
