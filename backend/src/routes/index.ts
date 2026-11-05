@@ -5,6 +5,12 @@ import patientRoutes from './patient.routes.js';
 import memoryRoutes from './memory.routes.js';
 import personRoutes from './person.routes.js';
 import albumRoutes from './album.routes.js';
+import storybookRoutes from './storybook.routes.js';
+import verificationRoutes from './verification.routes.js';
+import routineRoutes from './routine.routes.js';
+import diaryRoutes from './diary.routes.js';
+import dashboardRoutes from './dashboard.routes.js';
+import companionRoutes from './companion.routes.js';
 import { generalApiRateLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -24,10 +30,28 @@ router.use(patientRoutes);
 // Memory Endpoints: /api/v1/memories/* & /api/v1/patients/:patientId/memories/*
 router.use(memoryRoutes);
 
+// Verification Endpoints: /api/v1/memories/:memoryId/verify, /reject, /api/v1/patients/:patientId/verifications/*
+router.use(verificationRoutes);
+
 // People & Relationship Endpoints: /api/v1/people/*, /api/v1/relationships/*, /api/v1/patients/:patientId/people/*
 router.use(personRoutes);
 
 // Album Endpoints: /api/v1/albums/* & /api/v1/patients/:patientId/albums/*
 router.use(albumRoutes);
+
+// Storybook Endpoints: /api/v1/storybooks/* & /api/v1/patients/:patientId/storybooks/*
+router.use(storybookRoutes);
+
+// Routine Endpoints: /api/v1/routine/* & /api/v1/patients/:patientId/routine/*
+router.use(routineRoutes);
+
+// Diary Endpoints: /api/v1/diary/* & /api/v1/patients/:patientId/diary/*
+router.use(diaryRoutes);
+
+// Dashboard & Graph Endpoints: /api/v1/patients/:patientId/dashboard & /graph
+router.use(dashboardRoutes);
+
+// Companion Endpoints: /api/v1/patients/:patientId/companion/*
+router.use(companionRoutes);
 
 export default router;
