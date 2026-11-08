@@ -14,7 +14,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
-    "db:start": "tsx scripts/start-db.ts"
+    "db:start": "tsx scripts/start-db.ts",
+    "storage:cleanup": "tsx scripts/storage-cleanup.ts",
+    "firebase:smoke": "tsx scripts/firebase-smoke.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.4.0",

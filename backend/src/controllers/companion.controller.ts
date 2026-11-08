@@ -31,3 +31,4 @@ export class CompanionController {
 }
 
 export const companionController = new CompanionController();
+

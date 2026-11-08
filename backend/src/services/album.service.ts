@@ -2,6 +2,7 @@ import { Prisma, AccessRole, VerificationStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { albumRepository } from '../repositories/album.repository.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { resolveMediaUrl } from '../utils/media-url.js';
 
 export class AlbumService {
   private buildMemoryVisibilityFilter(
@@ -91,18 +92,20 @@ export class AlbumService {
       }
     }
 
-    const items = albums.map((a) => ({
-      id: a.id,
-      patientId: a.patientId,
-      title: a.title,
-      coverImage: a.coverImage,
-      colorTheme: a.colorTheme,
-      yearRange: a.yearRange,
-      description: a.description,
-      memoryCount: countsMap.get(a.id) || 0,
-      createdAt: a.createdAt,
-      updatedAt: a.updatedAt
-    }));
+    const items = await Promise.all(
+      albums.map(async (a) => ({
+        id: a.id,
+        patientId: a.patientId,
+        title: a.title,
+        coverImage: await resolveMediaUrl(a.coverImage),
+        colorTheme: a.colorTheme,
+        yearRange: a.yearRange,
+        description: a.description,
+        memoryCount: countsMap.get(a.id) || 0,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt
+      }))
+    );
 
     return {
       items,
@@ -144,7 +147,7 @@ export class AlbumService {
       id: album.id,
       patientId: album.patientId,
       title: album.title,
-      coverImage: album.coverImage,
+      coverImage: await resolveMediaUrl(album.coverImage),
       colorTheme: album.colorTheme,
       yearRange: album.yearRange,
       description: album.description,
@@ -195,7 +198,7 @@ export class AlbumService {
       id: album.id,
       patientId: album.patientId,
       title: album.title,
-      coverImage: album.coverImage,
+      coverImage: await resolveMediaUrl(album.coverImage),
       colorTheme: album.colorTheme,
       yearRange: album.yearRange,
       description: album.description,
@@ -259,7 +262,7 @@ export class AlbumService {
       id: updated.id,
       patientId: updated.patientId,
       title: updated.title,
-      coverImage: updated.coverImage,
+      coverImage: await resolveMediaUrl(updated.coverImage),
       colorTheme: updated.colorTheme,
       yearRange: updated.yearRange,
       description: updated.description,

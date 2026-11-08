@@ -2,9 +2,10 @@ import { Prisma, AccessRole, StorybookStatus, VerificationStatus } from '@prisma
 import { prisma } from '../config/prisma.js';
 import { storybookRepository } from '../repositories/storybook.repository.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { resolveMediaUrl } from '../utils/media-url.js';
 
 export class StorybookService {
-  private formatStorybookResponse(
+  private async formatStorybookResponse(
     sb: any,
     context: { isPatientSession: boolean; accessRole?: AccessRole; userId?: string }
   ) {
@@ -13,15 +14,16 @@ export class StorybookService {
       context.accessRole === AccessRole.VIEWER ||
       context.accessRole === AccessRole.FAMILY;
 
-    const filteredMemories = (sb.memories || [])
-      .filter((item: any) => {
-        if (!item.memory) return false;
-        if (onlyVerifiedMemories) {
-          return item.memory.verificationStatus === VerificationStatus.VERIFIED;
-        }
-        return true;
-      })
-      .map((item: any) => ({
+    const memoryList = (sb.memories || []).filter((item: any) => {
+      if (!item.memory) return false;
+      if (onlyVerifiedMemories) {
+        return item.memory.verificationStatus === VerificationStatus.VERIFIED;
+      }
+      return true;
+    });
+
+    const filteredMemories = await Promise.all(
+      memoryList.map(async (item: any) => ({
         sequenceOrder: item.sequenceOrder,
         memory: {
           id: item.memory.id,
@@ -33,28 +35,33 @@ export class StorybookService {
           location: item.memory.location,
           era: item.memory.era,
           verificationStatus: item.memory.verificationStatus,
-          people: (item.memory.people || []).map((p: any) => ({
-            id: p.person.id,
-            fullName: p.person.fullName,
-            profileImage: p.person.profileImage
-          })),
-          media: (item.memory.media || []).map((med: any) => ({
-            id: med.id,
-            mediaType: med.mediaType,
-            fileName: med.fileName,
-            mimeType: med.mimeType,
-            caption: med.caption,
-            url: null // Private media: signed URLs in Phase 6
-          }))
+          people: await Promise.all(
+            (item.memory.people || []).map(async (p: any) => ({
+              id: p.person.id,
+              fullName: p.person.fullName,
+              profileImage: await resolveMediaUrl(p.person.profileImage)
+            }))
+          ),
+          media: await Promise.all(
+            (item.memory.media || []).map(async (med: any) => ({
+              id: med.id,
+              mediaType: med.mediaType,
+              fileName: med.fileName,
+              mimeType: med.mimeType,
+              caption: med.caption,
+              url: await resolveMediaUrl(med.storagePath)
+            }))
+          )
         }
-      }));
+      }))
+    );
 
     return {
       id: sb.id,
       patientId: sb.patientId,
       title: sb.title,
       description: sb.description,
-      coverImage: sb.coverImage,
+      coverImage: await resolveMediaUrl(sb.coverImage),
       generatedStory: sb.generatedStory,
       status: sb.status,
       memoryCount: filteredMemories.length,
@@ -107,7 +114,7 @@ export class StorybookService {
     ]);
 
     return {
-      items: items.map((sb) => this.formatStorybookResponse(sb, context)),
+      items: await Promise.all(items.map((sb) => this.formatStorybookResponse(sb, context))),
       page,
       pageSize,
       total
@@ -127,7 +134,7 @@ export class StorybookService {
       throw new AppError('STORYBOOK_NOT_FOUND', 'Storybook not found.', 404);
     }
 
-    return this.formatStorybookResponse(sb, context);
+    return await this.formatStorybookResponse(sb, context);
   }
 
   async createStorybook(
@@ -197,7 +204,7 @@ export class StorybookService {
     });
 
     const full = await storybookRepository.findById(storybook.id);
-    return this.formatStorybookResponse(full, {
+    return await this.formatStorybookResponse(full, {
       isPatientSession: false,
       accessRole: AccessRole.OWNER,
       userId
@@ -247,7 +254,7 @@ export class StorybookService {
     });
 
     const full = await storybookRepository.findById(updated.id);
-    return this.formatStorybookResponse(full, {
+    return await this.formatStorybookResponse(full, {
       isPatientSession: false,
       accessRole: AccessRole.OWNER,
       userId
@@ -334,7 +341,7 @@ export class StorybookService {
     });
 
     const full = await storybookRepository.findById(storybookId);
-    return this.formatStorybookResponse(full, {
+    return await this.formatStorybookResponse(full, {
       isPatientSession: false,
       accessRole: AccessRole.OWNER,
       userId

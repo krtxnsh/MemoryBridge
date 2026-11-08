@@ -11,6 +11,8 @@ import routineRoutes from './routine.routes.js';
 import diaryRoutes from './diary.routes.js';
 import dashboardRoutes from './dashboard.routes.js';
 import companionRoutes from './companion.routes.js';
+import mediaRoutes from './media.routes.js';
+import localStorageRoutes from './local-storage.routes.js';
 import { generalApiRateLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -53,5 +55,11 @@ router.use(dashboardRoutes);
 
 // Companion Endpoints: /api/v1/patients/:patientId/companion/*
 router.use(companionRoutes);
+
+// Media Endpoints: /api/v1/patients/:patientId/media/* & /api/v1/media/*
+router.use(mediaRoutes);
+
+// Local Storage Serving (dev only): /api/v1/storage/*
+router.use(localStorageRoutes);
 
 export default router;

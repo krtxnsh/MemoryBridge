@@ -1,23 +1,26 @@
 import { patientRepository } from '../repositories/patient.repository.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { AccessRole } from '@prisma/client';
+import { resolveMediaUrl } from '../utils/media-url.js';
 
 export class PatientService {
   async listPatients(userId: string) {
     const accessRecords = await patientRepository.findAccessibleByUser(userId);
-    return accessRecords.map((item) => ({
-      id: item.patient.id,
-      fullName: item.patient.fullName,
-      dateOfBirth: item.patient.dateOfBirth,
-      profileImage: item.patient.profileImage,
-      preferredLanguage: item.patient.preferredLanguage,
-      biography: item.patient.biography,
-      personId: item.patient.personId,
-      isDemo: item.patient.isDemo,
-      relationship: item.relationship,
-      accessRole: item.accessRole,
-      createdAt: item.patient.createdAt
-    }));
+    return Promise.all(
+      accessRecords.map(async (item) => ({
+        id: item.patient.id,
+        fullName: item.patient.fullName,
+        dateOfBirth: item.patient.dateOfBirth,
+        profileImage: await resolveMediaUrl(item.patient.profileImage),
+        preferredLanguage: item.patient.preferredLanguage,
+        biography: item.patient.biography,
+        personId: item.patient.personId,
+        isDemo: item.patient.isDemo,
+        relationship: item.relationship,
+        accessRole: item.accessRole,
+        createdAt: item.patient.createdAt
+      }))
+    );
   }
 
   async getPatient(patientId: string, userId?: string, isPatientSession: boolean = false) {
@@ -38,7 +41,7 @@ export class PatientService {
       id: patient.id,
       fullName: patient.fullName,
       dateOfBirth: patient.dateOfBirth,
-      profileImage: patient.profileImage,
+      profileImage: await resolveMediaUrl(patient.profileImage),
       preferredLanguage: patient.preferredLanguage,
       biography: patient.biography,
       personId: patient.personId,
@@ -71,7 +74,7 @@ export class PatientService {
       id: patient.id,
       fullName: patient.fullName,
       dateOfBirth: patient.dateOfBirth,
-      profileImage: patient.profileImage,
+      profileImage: await resolveMediaUrl(patient.profileImage),
       preferredLanguage: patient.preferredLanguage,
       biography: patient.biography,
       personId: selfPerson.id,
@@ -102,7 +105,7 @@ export class PatientService {
       id: updated.id,
       fullName: updated.fullName,
       dateOfBirth: updated.dateOfBirth,
-      profileImage: updated.profileImage,
+      profileImage: await resolveMediaUrl(updated.profileImage),
       preferredLanguage: updated.preferredLanguage,
       biography: updated.biography,
       personId: updated.personId,

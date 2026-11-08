@@ -2,6 +2,7 @@ import { Prisma, AccessRole } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { personRepository } from '../repositories/person.repository.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { resolveMediaUrl } from '../utils/media-url.js';
 
 export class PersonService {
   /**
@@ -92,19 +93,21 @@ export class PersonService {
       this.getRelationshipMap(patientId)
     ]);
 
-    const items = people.map((p) => ({
-      id: p.id,
-      patientId: p.patientId,
-      fullName: p.fullName,
-      biography: p.biography,
-      birthYear: p.birthYear,
-      profileImage: p.profileImage,
-      confirmedByFamily: p.confirmedByFamily,
-      sharedMemoryCount: countsMap.get(p.id) || 0,
-      relationship: relMap.get(p.id) || null,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt
-    }));
+    const items = await Promise.all(
+      people.map(async (p) => ({
+        id: p.id,
+        patientId: p.patientId,
+        fullName: p.fullName,
+        biography: p.biography,
+        birthYear: p.birthYear,
+        profileImage: await resolveMediaUrl(p.profileImage),
+        confirmedByFamily: p.confirmedByFamily,
+        sharedMemoryCount: countsMap.get(p.id) || 0,
+        relationship: relMap.get(p.id) || null,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt
+      }))
+    );
 
     return {
       items,
@@ -143,7 +146,7 @@ export class PersonService {
       fullName: person.fullName,
       biography: person.biography,
       birthYear: person.birthYear,
-      profileImage: person.profileImage,
+      profileImage: await resolveMediaUrl(person.profileImage),
       confirmedByFamily: person.confirmedByFamily,
       sharedMemoryCount,
       relationship: relMap.get(person.id) || null,
@@ -218,7 +221,7 @@ export class PersonService {
       fullName: person.fullName,
       biography: person.biography,
       birthYear: person.birthYear,
-      profileImage: person.profileImage,
+      profileImage: await resolveMediaUrl(person.profileImage),
       confirmedByFamily: person.confirmedByFamily,
       sharedMemoryCount: 0,
       relationship: relMap.get(person.id) || null,
@@ -329,7 +332,7 @@ export class PersonService {
       fullName: person.fullName,
       biography: person.biography,
       birthYear: person.birthYear,
-      profileImage: person.profileImage,
+      profileImage: await resolveMediaUrl(person.profileImage),
       confirmedByFamily: person.confirmedByFamily,
       sharedMemoryCount,
       relationship: relMap.get(person.id) || null,

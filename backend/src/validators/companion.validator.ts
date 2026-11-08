@@ -6,3 +6,4 @@ export const companionMessageSchema = z.object({
     screen: z.string().trim().max(100).optional()
   }).optional()
 });
+

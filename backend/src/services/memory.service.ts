@@ -3,6 +3,7 @@ import { Prisma, VerificationStatus, MemorySource, AccessRole, EmbeddingStatus }
 import { prisma } from '../config/prisma.js';
 import { memoryRepository } from '../repositories/memory.repository.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { resolveMediaUrl } from '../utils/media-url.js';
 
 export class MemoryService {
   private computeContentHash(title: string, story: string): string {
@@ -88,7 +89,7 @@ export class MemoryService {
     return map;
   }
 
-  private formatMemoryItem(m: any, relMap: Map<string, string>) {
+  private async formatMemoryItem(m: any, relMap: Map<string, string>) {
     return {
       id: m.id,
       patientId: m.patientId,
@@ -108,20 +109,24 @@ export class MemoryService {
       verificationStatus: m.verificationStatus,
       songId: m.songId,
       mapCoordinates: m.mapX !== null && m.mapY !== null ? { x: m.mapX, y: m.mapY, label: m.mapLabel } : null,
-      people: (m.people || []).map((p: any) => ({
-        id: p.person.id,
-        fullName: p.person.fullName,
-        profileImage: p.person.profileImage,
-        relationship: relMap.get(p.person.id) || 'Family Member'
-      })),
-      media: (m.media || []).map((med: any) => ({
-        id: med.id,
-        mediaType: med.mediaType,
-        fileName: med.fileName,
-        mimeType: med.mimeType,
-        caption: med.caption,
-        url: null // Private media: signed URLs in Phase 6
-      })),
+      people: await Promise.all(
+        (m.people || []).map(async (p: any) => ({
+          id: p.person.id,
+          fullName: p.person.fullName,
+          profileImage: await resolveMediaUrl(p.person.profileImage),
+          relationship: relMap.get(p.person.id) || 'Family Member'
+        }))
+      ),
+      media: await Promise.all(
+        (m.media || []).map(async (med: any) => ({
+          id: med.id,
+          mediaType: med.mediaType,
+          fileName: med.fileName,
+          mimeType: med.mimeType,
+          caption: med.caption,
+          url: await resolveMediaUrl(med.storagePath)
+        }))
+      ),
       createdAt: m.createdAt,
       updatedAt: m.updatedAt
     };
@@ -234,7 +239,7 @@ export class MemoryService {
     const relMap = await this.getRelationshipMap(patientId);
 
     return {
-      items: items.map((m) => this.formatMemoryItem(m, relMap)),
+      items: await Promise.all(items.map((m) => this.formatMemoryItem(m, relMap))),
       page,
       pageSize,
       total
@@ -266,7 +271,7 @@ export class MemoryService {
     }
 
     const relMap = await this.getRelationshipMap(memory.patientId);
-    return this.formatMemoryItem(memory, relMap);
+    return await this.formatMemoryItem(memory, relMap);
   }
 
   async createMemory(
@@ -369,7 +374,7 @@ export class MemoryService {
     });
 
     const relMap = await this.getRelationshipMap(patientId);
-    return this.formatMemoryItem(memory, relMap);
+    return await this.formatMemoryItem(memory, relMap);
   }
 
   async updateMemory(
@@ -557,7 +562,7 @@ export class MemoryService {
     });
 
     const relMap = await this.getRelationshipMap(memory.patientId);
-    return this.formatMemoryItem(result, relMap);
+    return await this.formatMemoryItem(result, relMap);
   }
 
   async deleteMemory(memoryId: string, userId: string, accessRole: AccessRole) {

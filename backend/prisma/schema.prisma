@@ -74,6 +74,21 @@ enum EmbeddingStatus {
   READY
 }
 
+enum MediaUploadPurpose {
+  MEMORY_MEDIA
+  PATIENT_PROFILE
+  PERSON_PROFILE
+  ALBUM_COVER
+  STORYBOOK_COVER
+}
+
+enum MediaUploadStatus {
+  PENDING
+  CONFIRMED
+  EXPIRED
+  FAILED
+}
+
 model User {
   id               String               @id @default(uuid())
   email            String               @unique
@@ -93,6 +108,7 @@ model User {
   pairingCodes     PatientPairingCode[]
   auditLogs        AuditLog[]
   mediaUploads     Media[]
+  uploadIntents    MediaUpload[]
   refreshTokens    RefreshToken[]
 
   @@index([email])
@@ -139,6 +155,7 @@ model PatientProfile {
   patientSessions   PatientSession[]
   pairingCodes      PatientPairingCode[]
   media             Media[]
+  uploadIntents     MediaUpload[]
   auditLogs         AuditLog[]
 
   @@index([fullName])
@@ -196,6 +213,7 @@ model Memory {
   approvedBy         User?              @relation("ApprovedMemories", fields: [approvedById], references: [id], onDelete: SetNull)
   people             MemoryPeople[]
   media              Media[]
+  uploadIntents      MediaUpload[]
   storybookMemories  StorybookMemories[]
   verifications      Verification[]
   relatedMessages    Message[]
@@ -334,7 +352,8 @@ model Media {
   patientId     String
   memoryId      String?
   mediaType     MediaType
-  storagePath   String         // Object key in storage
+  storagePath   String         @unique // Object key in storage
+  checksum      String?        // MD5 or CRC32C storage checksum
   thumbnailPath String?
   fileName      String
   mimeType      String
@@ -348,10 +367,38 @@ model Media {
   patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
   memory        Memory?        @relation(fields: [memoryId], references: [id], onDelete: SetNull)
   uploader      User           @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
+  uploadIntent  MediaUpload?
 
   @@index([patientId])
   @@index([memoryId])
   @@index([uploadedBy])
+}
+
+model MediaUpload {
+  id                String             @id @default(uuid())
+  patientId         String
+  userId            String
+  storagePath       String             @unique
+  purpose           MediaUploadPurpose @default(MEMORY_MEDIA)
+  declaredMimeType  String
+  declaredSizeBytes Int
+  memoryId          String?
+  targetId          String?            // personId, albumId, storybookId if applicable
+  status            MediaUploadStatus  @default(PENDING)
+  mediaId           String?            @unique
+  expiresAt         DateTime
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  patient           PatientProfile     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  memory            Memory?            @relation(fields: [memoryId], references: [id], onDelete: SetNull)
+  media             Media?             @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
 }
 
 model RoutineItem {
@@ -470,4 +517,3 @@ model AuditLog {
   @@index([actorId])
   @@index([createdAt])
 }
-

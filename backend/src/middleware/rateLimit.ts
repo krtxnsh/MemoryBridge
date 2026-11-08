@@ -47,6 +47,39 @@ export const writeRateLimiter = rateLimit({
   }
 });
 
+// Media upload URL rate limiter
+export const uploadUrlRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, 'RATE_LIMIT_EXCEEDED', 'Upload URL request limit exceeded. Please try again later.', 429);
+  }
+});
+
+// Media confirm rate limiter
+export const confirmRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, 'RATE_LIMIT_EXCEEDED', 'Media confirm limit exceeded. Please try again later.', 429);
+  }
+});
+
+// Media read URL rate limiter
+export const mediaUrlRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    sendError(res, 'RATE_LIMIT_EXCEEDED', 'Media URL rate limit exceeded. Please try again later.', 429);
+  }
+});
+
 interface FailureRecord {
   count: number;
   firstFailedAt: number;
