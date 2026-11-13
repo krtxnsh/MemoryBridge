@@ -58,3 +58,4 @@ if (process.argv[1] && process.argv[1].includes('firebase-smoke')) {
       process.exit(1);
     });
 }
+

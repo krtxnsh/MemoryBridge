@@ -76,6 +76,16 @@ export class MediaController {
     );
     sendSuccess(res, result, 200);
   }
+
+  async listMemoryMedia(req: Request, res: Response): Promise<void> {
+    const result = await mediaService.listMemoryMedia(
+      req.params.memoryId as string,
+      req.user?.id,
+      req.patientAccess?.accessRole,
+      !!req.patientSession
+    );
+    sendSuccess(res, result, 200);
+  }
 }
 
 export const mediaController = new MediaController();

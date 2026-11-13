@@ -2,7 +2,7 @@ import { Prisma, AccessRole, VerificationStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { albumRepository } from '../repositories/album.repository.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { resolveMediaUrl } from '../utils/media-url.js';
+import { resolveMediaUrl, validateMediaStoragePath } from '../utils/media-url.js';
 
 export class AlbumService {
   private buildMemoryVisibilityFilter(
@@ -168,6 +168,9 @@ export class AlbumService {
       description?: string | null;
     }
   ) {
+    if (input.coverImage !== undefined) {
+      await validateMediaStoragePath(patientId, input.coverImage);
+    }
     const album = await prisma.$transaction(async (tx) => {
       const created = await tx.album.create({
         data: {
@@ -222,6 +225,10 @@ export class AlbumService {
     const existing = await albumRepository.findById(albumId);
     if (!existing) {
       throw new AppError('ALBUM_NOT_FOUND', 'Album not found.', 404);
+    }
+
+    if (input.coverImage !== undefined) {
+      await validateMediaStoragePath(existing.patientId, input.coverImage);
     }
 
     const updated = await prisma.$transaction(async (tx) => {

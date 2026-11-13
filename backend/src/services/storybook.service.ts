@@ -2,7 +2,7 @@ import { Prisma, AccessRole, StorybookStatus, VerificationStatus } from '@prisma
 import { prisma } from '../config/prisma.js';
 import { storybookRepository } from '../repositories/storybook.repository.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { resolveMediaUrl } from '../utils/media-url.js';
+import { resolveMediaUrl, validateMediaStoragePath } from '../utils/media-url.js';
 
 export class StorybookService {
   private async formatStorybookResponse(
@@ -149,6 +149,10 @@ export class StorybookService {
       memoryIds?: string[];
     }
   ) {
+    if (input.coverImage !== undefined) {
+      await validateMediaStoragePath(patientId, input.coverImage);
+    }
+
     // Cross-reference check if memoryIds provided
     if (input.memoryIds && input.memoryIds.length > 0) {
       const uniqueIds = Array.from(new Set(input.memoryIds));
@@ -225,6 +229,10 @@ export class StorybookService {
     const existing = await storybookRepository.findById(storybookId);
     if (!existing) {
       throw new AppError('STORYBOOK_NOT_FOUND', 'Storybook not found.', 404);
+    }
+
+    if (input.coverImage !== undefined) {
+      await validateMediaStoragePath(existing.patientId, input.coverImage);
     }
 
     const updated = await prisma.$transaction(async (tx) => {

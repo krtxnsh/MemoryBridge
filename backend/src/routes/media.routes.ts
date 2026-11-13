@@ -96,5 +96,28 @@ router.delete(
   (req, res, next) => mediaController.deleteMedia(req, res).catch(next)
 );
 
+// 7. GET /memories/:memoryId/media
+router.get(
+  '/memories/:memoryId/media',
+  authenticate,
+  validateUuidParams('memoryId'),
+  requirePatientAccess(
+    AccessRole.VIEWER,
+    async (req: Request) => {
+      const memory = await prisma.memory.findFirst({
+        where: { id: req.params.memoryId as string, deletedAt: null },
+        select: { patientId: true }
+      });
+      return memory?.patientId;
+    },
+    {
+      allowPatient: true,
+      notFoundCode: 'MEMORY_NOT_FOUND',
+      notFoundMessage: 'Memory resource not found.'
+    }
+  ),
+  (req, res, next) => mediaController.listMemoryMedia(req, res).catch(next)
+);
+
 export default router;
 

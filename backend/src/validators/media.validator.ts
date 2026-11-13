@@ -19,6 +19,7 @@ export const confirmUploadSchema = z.object({
 
 export const updateMediaSchema = z.object({
   caption: z.string().trim().max(500).optional(),
+  memoryId: z.string().uuid('Invalid memoryId UUID format').nullable().optional(),
   reverify: z.boolean().optional().default(false)
 });
 

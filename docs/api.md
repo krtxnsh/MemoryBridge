@@ -122,3 +122,4 @@ MemoryBridge backend adheres strictly to the `{ data, error }` response envelope
 - `GET /api/v1/media/:id/url` — Generate fresh short-lived signed GET URL for media item.
 - `PATCH /api/v1/media/:id` — Update media caption (auto-reverts verified memory unless `reverify: true`).
 - `DELETE /api/v1/media/:id` — Soft-delete media row and delete physical object in storage.
+

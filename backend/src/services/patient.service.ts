@@ -1,7 +1,6 @@
 import { patientRepository } from '../repositories/patient.repository.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { AccessRole } from '@prisma/client';
-import { resolveMediaUrl } from '../utils/media-url.js';
+import { resolveMediaUrl, validateMediaStoragePath } from '../utils/media-url.js';
 
 export class PatientService {
   async listPatients(userId: string) {
@@ -59,6 +58,13 @@ export class PatientService {
     preferredLanguage?: string;
     biography?: string | null;
   }) {
+    if (input.profileImage && !input.profileImage.startsWith('/assets/')) {
+      throw new AppError(
+        'INVALID_MEDIA_PATH',
+        'Initial profileImage must be null or an app asset path (/assets/...)',
+        400
+      );
+    }
     const dob = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
     const { patient, access, selfPerson } = await patientRepository.createPatientWithSelfPerson({
       userId,
@@ -92,6 +98,9 @@ export class PatientService {
     preferredLanguage?: string;
     biography?: string | null;
   }) {
+    if (input.profileImage !== undefined) {
+      await validateMediaStoragePath(patientId, input.profileImage);
+    }
     const dob = input.dateOfBirth ? new Date(input.dateOfBirth) : input.dateOfBirth === null ? null : undefined;
     const updated = await patientRepository.update(patientId, {
       fullName: input.fullName,

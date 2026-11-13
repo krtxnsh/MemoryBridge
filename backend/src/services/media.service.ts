@@ -260,15 +260,15 @@ export class MediaService {
 
     const spec = validateMimeAndExtension(intent.storagePath, intent.declaredMimeType);
 
-    // Validate physical size
-    if (stat.size <= 0 || stat.size > spec.maxSizeBytes) {
+    // Validate physical size (cannot exceed declared size or max type size)
+    if (stat.size <= 0 || stat.size > spec.maxSizeBytes || stat.size > intent.declaredSizeBytes) {
       await storage.deleteObject(intent.storagePath).catch(() => {});
       await mediaRepository.updateUploadIntent(intent.id, {
         status: MediaUploadStatus.FAILED
       });
       throw new AppError(
         'INVALID_FILE_SIZE',
-        `Uploaded file size (${stat.size} bytes) is invalid or exceeds maximum allowed ${spec.maxSizeBytes} bytes`,
+        `Uploaded file size (${stat.size} bytes) exceeds limit or declared size (${intent.declaredSizeBytes} bytes)`,
         400
       );
     }
@@ -307,101 +307,111 @@ export class MediaService {
       memoryToRevert = mem;
     }
 
-    // Execute database operations in transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Create Media row
-      const safeFileName = sanitizeFileName(path.basename(intent.storagePath));
-      const media = await tx.media.create({
-        data: {
-          patient: { connect: { id: patientId } },
-          memory: targetMemoryId ? { connect: { id: targetMemoryId } } : undefined,
-          mediaType: spec.mediaType,
-          storagePath: intent.storagePath,
-          checksum: stat.md5 || null,
-          fileName: safeFileName,
-          mimeType: intent.declaredMimeType,
-          sizeBytes: stat.size,
-          caption: input.caption?.trim() || null,
-          uploader: { connect: { id: userId } }
-        }
-      });
-
-      // 2. Mark intent as CONFIRMED
-      await tx.mediaUpload.update({
-        where: { id: intent.id },
-        data: {
-          status: MediaUploadStatus.CONFIRMED,
-          media: { connect: { id: media.id } }
-        }
-      });
-
-      // 3. Image binding for profile / cover purposes
-      if (intent.purpose === MediaUploadPurpose.PATIENT_PROFILE) {
-        await tx.patientProfile.update({
-          where: { id: patientId },
-          data: { profileImage: intent.storagePath }
-        });
-      } else if (intent.purpose === MediaUploadPurpose.PERSON_PROFILE && intent.targetId) {
-        await tx.person.update({
-          where: { id: intent.targetId },
-          data: { profileImage: intent.storagePath }
-        });
-      } else if (intent.purpose === MediaUploadPurpose.ALBUM_COVER && intent.targetId) {
-        await tx.album.update({
-          where: { id: intent.targetId },
-          data: { coverImage: intent.storagePath }
-        });
-      } else if (intent.purpose === MediaUploadPurpose.STORYBOOK_COVER && intent.targetId) {
-        await tx.storybook.update({
-          where: { id: intent.targetId },
-          data: { coverImage: intent.storagePath }
-        });
-      }
-
-      // 4. Safety rule: if attached to a VERIFIED memory
-      if (memoryToRevert && memoryToRevert.verificationStatus === VerificationStatus.VERIFIED) {
-        const canReverify =
-          input.reverify === true &&
-          (accessRole === AccessRole.OWNER || accessRole === AccessRole.CAREGIVER);
-
-        if (!canReverify) {
-          await tx.memory.update({
-            where: { id: memoryToRevert.id },
-            data: {
-              verificationStatus: VerificationStatus.PENDING,
-              approvedById: null
-            }
-          });
-
-          await tx.verification.create({
-            data: {
-              memoryId: memoryToRevert.id,
-              verifiedById: userId,
-              status: VerificationStatus.PENDING,
-              comments: 'Auto-reverted to PENDING due to media attachment'
-            }
-          });
-        }
-      }
-
-      // 5. Audit log
-      await tx.auditLog.create({
-        data: {
-          patientId,
-          actorId: userId,
-          action: 'MEDIA_CONFIRM',
-          resourceType: 'Media',
-          resourceId: media.id,
-          metadata: {
-            purpose: intent.purpose,
+    // Execute database operations in transaction (with storage cleanup on DB failure)
+    let result;
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        // 1. Create Media row
+        const safeFileName = sanitizeFileName(path.basename(intent.storagePath));
+        const media = await tx.media.create({
+          data: {
+            patient: { connect: { id: patientId } },
+            memory: targetMemoryId ? { connect: { id: targetMemoryId } } : undefined,
             mediaType: spec.mediaType,
-            sizeBytes: stat.size
+            storagePath: intent.storagePath,
+            checksum: stat.md5 || null,
+            fileName: safeFileName,
+            mimeType: intent.declaredMimeType,
+            sizeBytes: stat.size,
+            caption: input.caption?.trim() || null,
+            uploader: { connect: { id: userId } }
+          }
+        });
+
+        // 2. Mark intent as CONFIRMED
+        await tx.mediaUpload.update({
+          where: { id: intent.id },
+          data: {
+            status: MediaUploadStatus.CONFIRMED,
+            media: { connect: { id: media.id } }
+          }
+        });
+
+        // 3. Image binding for profile / cover purposes
+        if (intent.purpose === MediaUploadPurpose.PATIENT_PROFILE) {
+          await tx.patientProfile.update({
+            where: { id: patientId },
+            data: { profileImage: intent.storagePath }
+          });
+        } else if (intent.purpose === MediaUploadPurpose.PERSON_PROFILE && intent.targetId) {
+          await tx.person.update({
+            where: { id: intent.targetId },
+            data: { profileImage: intent.storagePath }
+          });
+        } else if (intent.purpose === MediaUploadPurpose.ALBUM_COVER && intent.targetId) {
+          await tx.album.update({
+            where: { id: intent.targetId },
+            data: { coverImage: intent.storagePath }
+          });
+        } else if (intent.purpose === MediaUploadPurpose.STORYBOOK_COVER && intent.targetId) {
+          await tx.storybook.update({
+            where: { id: intent.targetId },
+            data: { coverImage: intent.storagePath }
+          });
+        }
+
+        // 4. Safety rule: if attached to a VERIFIED memory
+        if (memoryToRevert && memoryToRevert.verificationStatus === VerificationStatus.VERIFIED) {
+          const canReverify =
+            input.reverify === true &&
+            (accessRole === AccessRole.OWNER || accessRole === AccessRole.CAREGIVER);
+
+          if (!canReverify) {
+            await tx.memory.update({
+              where: { id: memoryToRevert.id },
+              data: {
+                verificationStatus: VerificationStatus.PENDING,
+                approvedById: null
+              }
+            });
+
+            await tx.verification.create({
+              data: {
+                memoryId: memoryToRevert.id,
+                verifiedById: userId,
+                status: VerificationStatus.PENDING,
+                comments: 'Auto-reverted to PENDING due to media attachment'
+              }
+            });
           }
         }
-      });
 
-      return media;
-    });
+        // 5. Audit log
+        await tx.auditLog.create({
+          data: {
+            patientId,
+            actorId: userId,
+            action: 'MEDIA_CONFIRM',
+            resourceType: 'Media',
+            resourceId: media.id,
+            metadata: {
+              purpose: intent.purpose,
+              mediaType: spec.mediaType,
+              sizeBytes: stat.size
+            }
+          }
+        });
+
+        return media;
+      });
+    } catch (dbErr) {
+      // DB failure after upload cleans up the physical storage object
+      await storage.deleteObject(intent.storagePath).catch(() => {});
+      await mediaRepository.updateUploadIntent(intent.id, {
+        status: MediaUploadStatus.FAILED
+      }).catch(() => {});
+      throw dbErr;
+    }
 
     return this.formatMedia(result);
   }
@@ -543,15 +553,37 @@ export class MediaService {
       throw new AppError('NOT_FOUND', 'Media not found', 404);
     }
 
+    // Cross-reference check if attaching/changing memoryId
+    let newTargetMemory: any = null;
+    if (input.memoryId !== undefined && input.memoryId !== null) {
+      newTargetMemory = await prisma.memory.findFirst({
+        where: { id: input.memoryId, patientId: media.patientId, deletedAt: null }
+      });
+      if (!newTargetMemory) {
+        throw new AppError('NOT_FOUND', 'Target memory not found for this patient', 404);
+      }
+      if (input.memoryId !== media.memoryId) {
+        const count = await mediaRepository.countMediaForMemory(input.memoryId);
+        if (count >= env.MAX_MEDIA_PER_MEMORY) {
+          throw new AppError(
+            'MAX_MEDIA_REACHED',
+            `Memory already has the maximum of ${env.MAX_MEDIA_PER_MEMORY} media items`,
+            400
+          );
+        }
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const updated = await tx.media.update({
         where: { id: mediaId },
         data: {
-          caption: input.caption !== undefined ? input.caption.trim() || null : undefined
+          caption: input.caption !== undefined ? input.caption.trim() || null : undefined,
+          memoryId: input.memoryId !== undefined ? input.memoryId : undefined
         }
       });
 
-      // Safety rule if attached to a VERIFIED memory
+      // Safety rule if previously attached to a VERIFIED memory
       if (media.memory && media.memory.verificationStatus === VerificationStatus.VERIFIED) {
         const canReverify =
           input.reverify === true &&
@@ -577,6 +609,36 @@ export class MediaService {
         }
       }
 
+      // Safety rule if newly attached to a different VERIFIED memory
+      if (
+        newTargetMemory &&
+        newTargetMemory.id !== media.memoryId &&
+        newTargetMemory.verificationStatus === VerificationStatus.VERIFIED
+      ) {
+        const canReverify =
+          input.reverify === true &&
+          (accessRole === AccessRole.OWNER || accessRole === AccessRole.CAREGIVER);
+
+        if (!canReverify) {
+          await tx.memory.update({
+            where: { id: newTargetMemory.id },
+            data: {
+              verificationStatus: VerificationStatus.PENDING,
+              approvedById: null
+            }
+          });
+
+          await tx.verification.create({
+            data: {
+              memoryId: newTargetMemory.id,
+              verifiedById: userId,
+              status: VerificationStatus.PENDING,
+              comments: 'Auto-reverted to PENDING due to media attachment'
+            }
+          });
+        }
+      }
+
       await tx.auditLog.create({
         data: {
           patientId: media.patientId,
@@ -594,6 +656,47 @@ export class MediaService {
     });
 
     return this.formatMedia(result);
+  }
+
+  /**
+   * List media for a specific memory
+   */
+  async listMemoryMedia(
+    memoryId: string,
+    userId: string | undefined,
+    accessRole: AccessRole | undefined,
+    isPatientSession: boolean
+  ) {
+    const memory = await prisma.memory.findFirst({
+      where: { id: memoryId, deletedAt: null }
+    });
+    if (!memory) {
+      throw new AppError('NOT_FOUND', 'Memory not found', 404);
+    }
+
+    if (isPatientSession || accessRole === AccessRole.VIEWER) {
+      if (memory.verificationStatus !== VerificationStatus.VERIFIED) {
+        throw new AppError('NOT_FOUND', 'Memory not found', 404);
+      }
+    } else if (accessRole === AccessRole.FAMILY) {
+      if (memory.verificationStatus !== VerificationStatus.VERIFIED && memory.createdBy !== userId) {
+        throw new AppError('NOT_FOUND', 'Memory not found', 404);
+      }
+    }
+
+    const items = await prisma.media.findMany({
+      where: {
+        memoryId,
+        deletedAt: null
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const formatted = await Promise.all(items.map((item) => this.formatMedia(item)));
+    return {
+      items: formatted,
+      total: formatted.length
+    };
   }
 
   /**

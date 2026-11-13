@@ -2,7 +2,7 @@ import { Prisma, AccessRole } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { personRepository } from '../repositories/person.repository.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { resolveMediaUrl } from '../utils/media-url.js';
+import { resolveMediaUrl, validateMediaStoragePath } from '../utils/media-url.js';
 
 export class PersonService {
   /**
@@ -175,6 +175,10 @@ export class PersonService {
       throw new AppError('PATIENT_NOT_FOUND', 'Patient resource not found.', 404);
     }
 
+    if (input.profileImage !== undefined) {
+      await validateMediaStoragePath(patientId, input.profileImage);
+    }
+
     const person = await prisma.$transaction(async (tx) => {
       const created = await tx.person.create({
         data: {
@@ -248,6 +252,10 @@ export class PersonService {
     }
 
     const patient = existing.patient;
+
+    if (input.profileImage !== undefined) {
+      await validateMediaStoragePath(existing.patientId, input.profileImage);
+    }
 
     const person = await prisma.$transaction(async (tx) => {
       const updated = await tx.person.update({

@@ -1,5 +1,7 @@
 import { env } from '../config/env';
+import { prisma } from '../config/prisma';
 import { storage } from '../storage';
+import { AppError } from '../middleware/errorHandler';
 
 /**
  * Resolves an image/media path to a signed URL or passes through relative app assets / external URLs.
@@ -27,3 +29,33 @@ export async function resolveMediaUrl(pathOrUrl: string | null | undefined): Pro
   }
 }
 
+/**
+ * Validates that a profile/cover image path is either null, an app asset (/assets/...),
+ * or a confirmed Media object belonging to the specified patient.
+ */
+export async function validateMediaStoragePath(
+  patientId: string,
+  storagePath: string | null | undefined
+): Promise<void> {
+  if (!storagePath) return;
+
+  if (storagePath.startsWith('/assets/') || storagePath.startsWith('assets/')) {
+    return;
+  }
+
+  const media = await prisma.media.findFirst({
+    where: {
+      storagePath,
+      patientId,
+      deletedAt: null
+    }
+  });
+
+  if (!media) {
+    throw new AppError(
+      'INVALID_MEDIA_PATH',
+      'Image path must be a relative asset path (/assets/...) or a confirmed media object belonging to this patient',
+      400
+    );
+  }
+}

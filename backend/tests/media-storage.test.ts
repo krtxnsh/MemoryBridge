@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/config/prisma';
@@ -795,6 +795,307 @@ describe('Phase 6: Private Media Storage Test Suite', () => {
           FIREBASE_STORAGE_BUCKET: ''
         });
       }).toThrow(/FIREBASE_PROJECT_ID is required/i);
+    });
+  });
+
+  describe('8. Advanced Security, Integrity & Caps Verification', () => {
+    it('GET /memories/:memoryId/media lists media for memory with proper role filtering', async () => {
+      // Create a media item attached to verifiedMemoryId
+      const resUrl = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/upload-url`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          fileName: 'memory_media_test.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: validJpegBuffer.length,
+          memoryId: verifiedMemoryId
+        });
+      const intent = await prisma.mediaUpload.findUnique({ where: { id: resUrl.body.data.uploadId } });
+      mockStorage.putObject(intent!.storagePath, validJpegBuffer, 'image/jpeg');
+
+      await request(app)
+        .post(`/api/v1/patients/${patientId}/media/confirm`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ uploadId: resUrl.body.data.uploadId, reverify: true });
+
+      // Owner can list
+      const resList = await request(app)
+        .get(`/api/v1/memories/${verifiedMemoryId}/media`)
+        .set('Authorization', `Bearer ${ownerToken}`);
+      expect(resList.status).toBe(200);
+      expect(resList.body.data.items.length).toBeGreaterThanOrEqual(1);
+
+      // Patient session can list media for VERIFIED memory
+      const resTablet = await request(app)
+        .get(`/api/v1/memories/${verifiedMemoryId}/media`)
+        .set('Authorization', `Bearer ${patientTabletToken}`);
+      expect(resTablet.status).toBe(200);
+
+      // Patient session gets 404 for media of PENDING memory
+      const resTabletPending = await request(app)
+        .get(`/api/v1/memories/${pendingMemoryId}/media`)
+        .set('Authorization', `Bearer ${patientTabletToken}`);
+      expect(resTabletPending.status).toBe(404);
+    });
+
+    it('PATCH /media/:id attaches and detaches to a memory of the same patient', async () => {
+      // Create unattached media
+      const resUrl = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/upload-url`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          fileName: 'attach_test.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: validJpegBuffer.length
+        });
+      const intent = await prisma.mediaUpload.findUnique({ where: { id: resUrl.body.data.uploadId } });
+      mockStorage.putObject(intent!.storagePath, validJpegBuffer, 'image/jpeg');
+
+      const resConfirm = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/confirm`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ uploadId: resUrl.body.data.uploadId });
+      const mediaId = resConfirm.body.data.id;
+
+      // Attach to pendingMemoryId
+      const resAttach = await request(app)
+        .patch(`/api/v1/media/${mediaId}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ memoryId: pendingMemoryId });
+      expect(resAttach.status).toBe(200);
+      expect(resAttach.body.data.memoryId).toBe(pendingMemoryId);
+
+      // Detach (memoryId: null)
+      const resDetach = await request(app)
+        .patch(`/api/v1/media/${mediaId}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ memoryId: null });
+      expect(resDetach.status).toBe(200);
+      expect(resDetach.body.data.memoryId).toBeNull();
+    });
+
+    it('PATCH /media/:id rejects attaching to a memory of another patient', async () => {
+      // Create stranger patient & memory
+      const resStranger = await request(app)
+        .post('/api/v1/patients')
+        .set('Authorization', `Bearer ${strangerToken}`)
+        .send({ fullName: 'Foreign Patient', relationship: 'Other' });
+      const foreignPatientId = resStranger.body.data.id;
+
+      const resForeignMem = await request(app)
+        .post(`/api/v1/patients/${foreignPatientId}/memories`)
+        .set('Authorization', `Bearer ${strangerToken}`)
+        .send({ title: 'Foreign Memory', story: 'Story', era: 'MID' });
+      const foreignMemoryId = resForeignMem.body.data.id;
+
+      // Create media for patientId
+      const resUrl = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/upload-url`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          fileName: 'cross_attach.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: validJpegBuffer.length
+        });
+      const intent = await prisma.mediaUpload.findUnique({ where: { id: resUrl.body.data.uploadId } });
+      mockStorage.putObject(intent!.storagePath, validJpegBuffer, 'image/jpeg');
+      const resConfirm = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/confirm`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ uploadId: resUrl.body.data.uploadId });
+      const mediaId = resConfirm.body.data.id;
+
+      // Try attaching foreign memory
+      const resAttach = await request(app)
+        .patch(`/api/v1/media/${mediaId}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ memoryId: foreignMemoryId });
+      expect(resAttach.status).toBe(404);
+
+      await prisma.patientProfile.deleteMany({ where: { id: foreignPatientId } });
+    });
+
+    it('enforces pending upload intents cap per user', async () => {
+      // Max pending is 10
+      // Create 10 pending intents for familyUser
+      const createdIds: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        const res = await request(app)
+          .post(`/api/v1/patients/${patientId}/media/upload-url`)
+          .set('Authorization', `Bearer ${familyToken}`)
+          .send({
+            fileName: `pending_${i}.jpg`,
+            mimeType: 'image/jpeg',
+            sizeBytes: 1024
+          });
+        expect(res.status).toBe(201);
+        createdIds.push(res.body.data.uploadId);
+      }
+
+      // 11th request must fail with 400 TOO_MANY_PENDING_UPLOADS
+      const resExceeded = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/upload-url`)
+        .set('Authorization', `Bearer ${familyToken}`)
+        .send({
+          fileName: 'pending_11.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: 1024
+        });
+      expect(resExceeded.status).toBe(400);
+      expect(resExceeded.body.error.code).toBe('TOO_MANY_PENDING_UPLOADS');
+
+      // Cleanup
+      await prisma.mediaUpload.deleteMany({ where: { id: { in: createdIds } } });
+    });
+
+    it('rejects upload and deletes object if actual physical size exceeds declared size', async () => {
+      const resUrl = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/upload-url`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          fileName: 'oversize_actual.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: 10 // Declared size only 10 bytes
+        });
+      const { uploadId } = resUrl.body.data;
+      const intent = await prisma.mediaUpload.findUnique({ where: { id: uploadId } });
+
+      // Put 16 bytes (> 10 bytes declared)
+      mockStorage.putObject(intent!.storagePath, validJpegBuffer, 'image/jpeg');
+
+      const resConfirm = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/confirm`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ uploadId });
+
+      expect(resConfirm.status).toBe(400);
+      expect(resConfirm.body.error.code).toBe('INVALID_FILE_SIZE');
+
+      // Storage object deleted
+      const stat = await mockStorage.statObject(intent!.storagePath);
+      expect(stat.exists).toBe(false);
+    });
+
+    it('cleans up storage object if DB failure occurs after upload during confirm', async () => {
+      const resUrl = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/upload-url`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          fileName: 'db_fail_cleanup.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: validJpegBuffer.length
+        });
+      const { uploadId } = resUrl.body.data;
+      const intent = await prisma.mediaUpload.findUnique({ where: { id: uploadId } });
+      mockStorage.putObject(intent!.storagePath, validJpegBuffer, 'image/jpeg');
+
+      // Save original transaction and mock failure
+      const origTransaction = prisma.$transaction.bind(prisma);
+      prisma.$transaction = vi.fn().mockRejectedValueOnce(new Error('Simulated DB transaction crash')) as any;
+
+      try {
+        const resConfirm = await request(app)
+          .post(`/api/v1/patients/${patientId}/media/confirm`)
+          .set('Authorization', `Bearer ${ownerToken}`)
+          .send({ uploadId });
+
+        expect(resConfirm.status).toBe(500);
+
+        // Storage object must be deleted
+        const stat = await mockStorage.statObject(intent!.storagePath);
+        expect(stat.exists).toBe(false);
+      } finally {
+        prisma.$transaction = origTransaction;
+      }
+    });
+
+    it('ignores forged storage path in confirm body', async () => {
+      const resUrl = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/upload-url`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          fileName: 'forged_path_test.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: validJpegBuffer.length
+        });
+      const { uploadId } = resUrl.body.data;
+      const intent = await prisma.mediaUpload.findUnique({ where: { id: uploadId } });
+      mockStorage.putObject(intent!.storagePath, validJpegBuffer, 'image/jpeg');
+
+      // Pass forged storagePath in confirm body
+      const resConfirm = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/confirm`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          uploadId,
+          storagePath: 'patients/forged/path/hacked.jpg'
+        });
+
+      expect(resConfirm.status).toBe(201);
+      // Confirmed media must use real intent storagePath, not forged path
+      const media = await prisma.media.findUnique({ where: { id: resConfirm.body.data.id } });
+      expect(media?.storagePath).toBe(intent!.storagePath);
+    });
+
+    it('prevents patient token from viewing media of PENDING memories', async () => {
+      // Attach a media item to pendingMemoryId
+      const resUrl = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/upload-url`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          fileName: 'pending_hidden.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: validJpegBuffer.length,
+          memoryId: pendingMemoryId
+        });
+      const intent = await prisma.mediaUpload.findUnique({ where: { id: resUrl.body.data.uploadId } });
+      mockStorage.putObject(intent!.storagePath, validJpegBuffer, 'image/jpeg');
+
+      const resConfirm = await request(app)
+        .post(`/api/v1/patients/${patientId}/media/confirm`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ uploadId: resUrl.body.data.uploadId });
+      const pendingMediaId = resConfirm.body.data.id;
+
+      // Patient token requesting media URL must get 404
+      const resUrlQuery = await request(app)
+        .get(`/api/v1/media/${pendingMediaId}/url`)
+        .set('Authorization', `Bearer ${patientTabletToken}`);
+      expect(resUrlQuery.status).toBe(404);
+
+      // Patient token listing media must not include this item
+      const resList = await request(app)
+        .get(`/api/v1/patients/${patientId}/media`)
+        .set('Authorization', `Bearer ${patientTabletToken}`);
+      expect(resList.status).toBe(200);
+      expect(resList.body.data.items.some((m: any) => m.id === pendingMediaId)).toBe(false);
+    });
+
+    it('rejects profile/cover image paths that are not confirmed media of the same patient', async () => {
+      // Non-existent storage path
+      const fakeStoragePath = `patients/${patientId}/images/non_existent.jpg`;
+      const resFake = await request(app)
+        .patch(`/api/v1/patients/${patientId}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ profileImage: fakeStoragePath });
+      expect(resFake.status).toBe(400);
+      expect(resFake.body.error.code).toBe('INVALID_MEDIA_PATH');
+
+      // Storage path of another patient
+      const otherPatientStoragePath = `patients/11111111-2222-3333-4444-555555555555/images/other.jpg`;
+      const resOther = await request(app)
+        .patch(`/api/v1/patients/${patientId}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ profileImage: otherPatientStoragePath });
+      expect(resOther.status).toBe(400);
+      expect(resOther.body.error.code).toBe('INVALID_MEDIA_PATH');
+
+      // Relative asset path is accepted
+      const resAsset = await request(app)
+        .patch(`/api/v1/patients/${patientId}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ profileImage: '/assets/profiles/avatar.jpg' });
+      expect(resAsset.status).toBe(200);
     });
   });
 });
