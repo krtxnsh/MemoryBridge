@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../store/AppContext';
 import { conversationService, speechService, voiceService } from '../../services';
+import { companionApi } from '../../api/client';
 import { MascotMira } from '../../components/common/MascotMira';
 import { 
   ArrowLeft, 
@@ -24,7 +25,7 @@ export const PatientCompanion: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialPrompt = searchParams.get('prompt');
 
-  const { memories, people, patientName, playSong, songs, voiceEnabled } = useApp();
+  const { memories, people, patientName, playSong, songs, voiceEnabled, activePatientId } = useApp();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -62,7 +63,7 @@ export const PatientCompanion: React.FC = () => {
     }
   }, [initialPrompt]);
 
-  const handleUserSubmit = (queryText: string) => {
+  const handleUserSubmit = async (queryText: string) => {
     const text = queryText.trim();
     if (!text) return;
 
@@ -82,18 +83,36 @@ export const PatientCompanion: React.FC = () => {
     speechService.stop();
     setIsSpeaking(false);
 
-    // 2. Deterministic AI response with verified memory safety check
-    setTimeout(() => {
-      const aiResult = conversationService.respond(text, memories, people, patientName);
-      
-      const companionMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        sender: 'companion',
-        text: aiResult.text,
-        timestamp: 'Just now',
-        memoryCard: aiResult.memoryCard,
-        suggestedPrompts: aiResult.suggestedPrompts
-      };
+    try {
+      // 2. Call backend companion API with tablet session token & dementia safety checks
+      let companionMsg: ChatMessage;
+
+      if (activePatientId) {
+        try {
+          companionMsg = await companionApi.sendMessage(activePatientId, text);
+        } catch {
+          // Fallback to local rule engine if offline
+          const aiResult = conversationService.respond(text, memories, people, patientName);
+          companionMsg = {
+            id: `ai-${Date.now()}`,
+            sender: 'companion',
+            text: aiResult.text,
+            timestamp: 'Just now',
+            memoryCard: aiResult.memoryCard,
+            suggestedPrompts: aiResult.suggestedPrompts
+          };
+        }
+      } else {
+        const aiResult = conversationService.respond(text, memories, people, patientName);
+        companionMsg = {
+          id: `ai-${Date.now()}`,
+          sender: 'companion',
+          text: aiResult.text,
+          timestamp: 'Just now',
+          memoryCard: aiResult.memoryCard,
+          suggestedPrompts: aiResult.suggestedPrompts
+        };
+      }
 
       setMessages(prev => [...prev, companionMsg]);
       setIsThinking(false);
@@ -101,11 +120,14 @@ export const PatientCompanion: React.FC = () => {
       // Auto-speak if voice is enabled
       if (voiceEnabled) {
         setIsSpeaking(true);
-        speechService.speak(aiResult.text, () => {
+        speechService.speak(companionMsg.text, () => {
           setIsSpeaking(false);
         });
       }
-    }, 600);
+    } catch (err) {
+      console.warn('Companion response error', err);
+      setIsThinking(false);
+    }
   };
 
   const handleMicToggle = () => {
