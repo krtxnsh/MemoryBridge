@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../store/AppContext';
 import { Volume2, VolumeX, Type, Music, ShieldCheck, HeartHandshake, Home, LogIn, LogOut, User } from 'lucide-react';
 import { LoginModal } from './LoginModal';
 
 export const HeaderBar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const { 
     currentUser,
@@ -77,8 +78,9 @@ export const HeaderBar: React.FC = () => {
               <span>👵</span>
               <span>Patient App</span>
             </Link>
-            <Link
-              to="/family"
+            <button
+              type="button"
+              onClick={() => isLoggedIn ? navigate('/family') : setShowLoginModal(true)}
               className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center gap-1.5 ${
                 isCaregiverApp 
                   ? 'bg-ink-primary text-white shadow-soft font-semibold' 
@@ -87,7 +89,7 @@ export const HeaderBar: React.FC = () => {
             >
               <ShieldCheck className="w-3.5 h-3.5 text-primary-300" />
               <span>Caregiver</span>
-            </Link>
+            </button>
           </nav>
 
           {/* Accessibility & Audio Controls */}

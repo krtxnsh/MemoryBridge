@@ -81,6 +81,12 @@ export function clearAllTokens(): void {
   localStorage.removeItem(ACTIVE_PATIENT_KEY);
 }
 
+function notifyAuthExpired(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('memorybridge:auth-expired'));
+  }
+}
+
 // -------------------------------------------------------------
 // Central Request Executor
 // -------------------------------------------------------------
@@ -146,9 +152,11 @@ export async function apiRequest<T>(
         }
       } else {
         setAccessToken(null);
+        notifyAuthExpired();
       }
     } catch {
       setAccessToken(null);
+      notifyAuthExpired();
     }
   }
 
@@ -340,6 +348,15 @@ export const authApi = {
     return res;
   },
 
+  async demo(role: 'caregiver' | 'family' = 'caregiver') {
+    const res = await apiRequest<{ user: any; accessToken: string }>('/auth/demo', {
+      method: 'POST',
+      body: JSON.stringify({ role })
+    });
+    if (res.accessToken) setAccessToken(res.accessToken);
+    return res;
+  },
+
   async logout() {
     try {
       await apiRequest('/auth/logout', { method: 'POST' });
@@ -349,7 +366,7 @@ export const authApi = {
   },
 
   async me() {
-    return apiRequest<{ user: any }>('/auth/me');
+    return apiRequest<any>('/auth/me');
   }
 };
 
@@ -362,7 +379,13 @@ export const patientApi = {
     return apiRequest<any>(`/patients/${id}`);
   },
 
-  async createPatient(data: { fullName: string; dateOfBirth?: string; relationship: string }) {
+  async createPatient(data: {
+    fullName: string;
+    dateOfBirth?: string;
+    relationship: string;
+    preferredLanguage?: string;
+    biography?: string;
+  }) {
     return apiRequest<any>('/patients', {
       method: 'POST',
       body: JSON.stringify(data)

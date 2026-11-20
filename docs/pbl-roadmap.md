@@ -40,11 +40,11 @@ MemoryBridge is a caregiver-governed memory recall system. Its primary contribut
 
 ### Phase 3 — Authentication productization
 
-- [ ] Replace automatic demo login with an explicit **Try Demo** action
-- [ ] Add route guards for caregiver pages
-- [ ] Add a first-run patient/workspace setup flow
+- [x] Replace automatic demo login with explicit **Try Demo** actions
+- [x] Add route guards for caregiver and patient pages
+- [x] Add a first-run patient/workspace setup flow
 - [ ] Add family-member management and role removal
-- [ ] Add session-expiry UI and reauthentication
+- [x] Add session-expiry UI and reauthentication
 
 ### Phase 4 — Semantic verified-memory retrieval
 

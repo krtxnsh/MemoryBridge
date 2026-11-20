@@ -44,6 +44,10 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required')
 });
 
+export const demoLoginSchema = z.object({
+  role: z.enum(['caregiver', 'family']).optional().default('caregiver')
+});
+
 export const createPatientSchema = z.object({
   fullName: z.string().trim().min(1, 'Patient full name is required'),
   dateOfBirth: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),

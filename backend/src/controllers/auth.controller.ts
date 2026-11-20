@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { authService } from '../services/auth.service.js';
-import { registerSchema, loginSchema } from '../validators/auth.validator.js';
+import { registerSchema, loginSchema, demoLoginSchema } from '../validators/auth.validator.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { env } from '../config/env.js';
 import {
   REFRESH_COOKIE_NAME,
   setRefreshTokenCookie,
@@ -39,6 +40,30 @@ export class AuthController {
 
       setRefreshTokenCookie(res, result.refreshToken);
 
+      sendSuccess(res, {
+        user: result.user,
+        accessToken: result.accessToken
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async demo(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!env.DEMO_MODE) {
+        sendError(res, 'NOT_FOUND', 'Resource not found', 404);
+        return;
+      }
+
+      const { role } = demoLoginSchema.parse(req.body);
+      const email = role === 'family' ? 'riya@example.com' : 'anita@example.com';
+      const result = await authService.login(
+        { email, password: 'Password123!' },
+        `demo:${role}`
+      );
+
+      setRefreshTokenCookie(res, result.refreshToken);
       sendSuccess(res, {
         user: result.user,
         accessToken: result.accessToken

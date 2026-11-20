@@ -8,7 +8,7 @@ interface LoginModalProps {
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
-  const { login, register, showToast } = useApp();
+  const { login, register, startDemo, showToast } = useApp();
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,11 +41,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleQuickLogin = async (demoEmail: string, demoPass: string, label: string) => {
+  const handleQuickLogin = async (demoRole: 'caregiver' | 'family', label: string) => {
     setErrorMsg(null);
     setLoading(true);
     try {
-      await login(demoEmail, demoPass);
+      await startDemo(demoRole);
       showToast(`Signed in as ${label}`, 'success');
       onClose();
     } catch (err: any) {
@@ -97,7 +97,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
             <button
               type="button"
               disabled={loading}
-              onClick={() => handleQuickLogin('anita@example.com', 'Password123!', 'Anita (Caregiver)')}
+              onClick={() => handleQuickLogin('caregiver', 'Anita (Caregiver)')}
               className="py-1.5 px-3 rounded-xl bg-white border border-primary-200 text-xs font-semibold text-primary hover:bg-primary hover:text-white transition-all shadow-xs text-left"
             >
               Anita (Caregiver)
@@ -105,7 +105,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
             <button
               type="button"
               disabled={loading}
-              onClick={() => handleQuickLogin('riya@example.com', 'Password123!', 'Riya (Family Member)')}
+              onClick={() => handleQuickLogin('family', 'Riya (Family Member)')}
               className="py-1.5 px-3 rounded-xl bg-white border border-primary-200 text-xs font-semibold text-primary hover:bg-primary hover:text-white transition-all shadow-xs text-left"
             >
               Riya (Family)

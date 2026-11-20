@@ -16,6 +16,11 @@ router.post('/login', authRateLimiter, loginProgressiveDelay, (req, res, next) =
   authController.login(req, res, next);
 });
 
+// POST /api/v1/auth/demo (available only when DEMO_MODE=true)
+router.post('/demo', authRateLimiter, (req, res, next) => {
+  authController.demo(req, res, next);
+});
+
 // POST /api/v1/auth/refresh
 router.post('/refresh', authRateLimiter, verifyCsrfOrigin, (req, res, next) => {
   authController.refresh(req, res, next);

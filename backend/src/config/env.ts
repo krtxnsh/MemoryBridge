@@ -16,7 +16,10 @@ export const envSchema = z
     JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
     JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
     CORS_ORIGIN: z.string().default('http://localhost:5173'),
-    DEMO_MODE: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(true),
+    DEMO_MODE: z.preprocess(
+      (val) => val === undefined ? undefined : val === 'true' || val === true,
+      z.boolean()
+    ).default(process.env.NODE_ENV !== 'production'),
 
     // Storage configuration
     STORAGE_PROVIDER: z.enum(['local', 'firebase', 'mock']).default(process.env.NODE_ENV === 'test' ? 'mock' : 'local'),

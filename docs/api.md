@@ -26,6 +26,7 @@ MemoryBridge backend adheres strictly to the `{ data, error }` response envelope
 
 - `POST /api/v1/auth/register` — Register a new account (`name`, `email`, `password`, `role`).
 - `POST /api/v1/auth/login` — Login with credentials (`email`, `password`), returns tokens.
+- `POST /api/v1/auth/demo` — Start a one-click caregiver or family demo (`role`); available only when `DEMO_MODE=true`.
 - `POST /api/v1/auth/refresh` — Refresh access token using refresh cookie or body token.
 - `POST /api/v1/auth/logout` — Invalidate refresh token and clear cookie.
 - `GET /api/v1/auth/me` — Return current authenticated user profile.

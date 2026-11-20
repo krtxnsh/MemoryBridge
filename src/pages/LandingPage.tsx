@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MascotMira } from '../components/common/MascotMira';
 import { 
@@ -15,9 +15,25 @@ import {
   Check
 } from 'lucide-react';
 import { createSvgPhoto } from '../assets/placeholders';
+import { useApp } from '../store/AppContext';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { startDemo, showToast } = useApp();
+  const [startingDemo, setStartingDemo] = useState<'patient' | 'caregiver' | null>(null);
+
+  const launchDemo = async (destination: '/patient' | '/family') => {
+    setStartingDemo(destination === '/patient' ? 'patient' : 'caregiver');
+    try {
+      await startDemo('caregiver');
+      navigate(destination);
+    } catch (error) {
+      console.error('Unable to start demo', error);
+      showToast('The demo is unavailable right now. You can still sign in or create an account.', 'amber');
+    } finally {
+      setStartingDemo(null);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-warm-wash text-ink-primary selection:bg-warm-peach selection:text-primary-text">
@@ -47,19 +63,21 @@ export const LandingPage: React.FC = () => {
             {/* Main Action CTAs */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto pt-2">
               <button
-                onClick={() => navigate('/patient')}
+                onClick={() => void launchDemo('/patient')}
+                disabled={startingDemo !== null}
                 className="inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-primary to-primary-hover text-white font-bold text-base sm:text-lg shadow-soft-lg hover:scale-105 active:scale-95 transition-all"
               >
-                <span>Launch Patient Experience</span>
+                <span>{startingDemo === 'patient' ? 'Opening demo…' : 'Try Patient Demo'}</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
 
               <button
-                onClick={() => navigate('/family')}
+                onClick={() => void launchDemo('/family')}
+                disabled={startingDemo !== null}
                 className="inline-flex items-center justify-center gap-3 px-7 py-4 rounded-2xl bg-white hover:bg-warm-cream text-ink-primary border-2 border-warm-sand font-bold text-base sm:text-lg shadow-soft hover:border-primary transition-all"
               >
                 <ShieldCheck className="w-5 h-5 text-primary" />
-                <span>Caregiver Dashboard</span>
+                <span>{startingDemo === 'caregiver' ? 'Opening demo…' : 'Try Caregiver Demo'}</span>
               </button>
             </div>
 

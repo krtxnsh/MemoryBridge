@@ -53,6 +53,7 @@ interface AppContextType {
   isLoggedIn: boolean;
   login: (email: string, pass: string) => Promise<void>;
   register: (email: string, pass: string, name: string, role?: string) => Promise<void>;
+  startDemo: (role?: 'caregiver' | 'family') => Promise<void>;
   logout: () => Promise<void>;
 
   // Patient context
@@ -141,6 +142,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, 4000);
   }, []);
 
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      clearAllTokens();
+      setCurrentUser(null);
+      setPatientsList([]);
+      setActivePatient(null);
+      setActivePatientIdState('');
+      showToast('Your session expired. Please sign in again.', 'amber');
+    };
+    window.addEventListener('memorybridge:auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('memorybridge:auth-expired', handleAuthExpired);
+  }, [showToast]);
+
   // Fetch all domain data for the active patient
   const loadPatientDomainData = useCallback(async (patId: string) => {
     if (!patId) return;
@@ -176,31 +190,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         // 1. Check if user access token is already stored
         const token = getAccessToken();
-        let user: UserProfile | null = null;
-        if (token) {
-          try {
-            const meRes = await authApi.me();
-            if (meRes.user) {
-              user = meRes.user;
-              if (isMounted) setCurrentUser(user);
-            }
-          } catch {
-            // Token invalid or expired, continue to fallback demo login
-          }
-        }
+        if (!token) return;
 
-        // 2. If no user logged in, perform automated seamless demo login as Anita (Caregiver)
-        if (!user) {
-          try {
-            const loginRes = await authApi.login({
-              email: 'anita@example.com',
-              password: 'Password123!'
-            });
-            user = loginRes.user;
-            if (isMounted) setCurrentUser(user);
-          } catch (e) {
-            console.warn('Demo login skipped or backend unreachable', e);
-          }
+        let user: UserProfile;
+        try {
+          user = await authApi.me();
+          if (isMounted) setCurrentUser(user);
+        } catch {
+          clearAllTokens();
+          return;
         }
 
         // 3. Fetch patients accessible to user
@@ -279,12 +277,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const startDemo = async (role: 'caregiver' | 'family' = 'caregiver') => {
+    setIsLoading(true);
+    try {
+      const res = await authApi.demo(role);
+      setCurrentUser(res.user);
+
+      const patients = await patientApi.listPatients();
+      setPatientsList(patients);
+      const targetPatient = patients[0];
+      if (targetPatient) {
+        setActivePatientIdState(targetPatient.id);
+        setActivePatientId(targetPatient.id);
+        setActivePatient(targetPatient);
+        await loadPatientDomainData(targetPatient.id);
+      }
+      showToast(`Demo started as ${role === 'family' ? 'Riya' : 'Anita'}.`, 'info');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       await authApi.logout();
     } finally {
       clearAllTokens();
       setCurrentUser(null);
+      setPatientsList([]);
       setActivePatient(null);
       setActivePatientIdState('');
       setMemories(INITIAL_MEMORIES);
@@ -512,6 +532,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isLoggedIn: !!currentUser,
         login,
         register,
+        startDemo,
         logout,
 
         // Patient
