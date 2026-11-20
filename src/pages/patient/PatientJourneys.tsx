@@ -97,14 +97,14 @@ export const PatientJourneys: React.FC = () => {
           >
             <defs>
               <linearGradient id="landGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#FCF3CF" />
-                <stop offset="50%" stop-color="#FAD7A0" />
-                <stop offset="100%" stop-color="#EDBB99" />
+                <stop offset="0%" stopColor="#FCF3CF" />
+                <stop offset="50%" stopColor="#FAD7A0" />
+                <stop offset="100%" stopColor="#EDBB99" />
               </linearGradient>
 
               <radialGradient id="oceanGrad" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="#E1F5FE" />
-                <stop offset="100%" stop-color="#B3E5FC" />
+                <stop offset="0%" stopColor="#E1F5FE" />
+                <stop offset="100%" stopColor="#B3E5FC" />
               </radialGradient>
             </defs>
 
@@ -112,9 +112,9 @@ export const PatientJourneys: React.FC = () => {
             <rect width="500" height="440" fill="url(#oceanGrad)" rx="20" />
 
             {/* Decorative ocean waves */}
-            <path d="M 40 80 Q 70 70, 100 80 T 160 80" stroke="#81D4FA" stroke-width="2" fill="none" opacity="0.6" />
-            <path d="M 50 200 Q 80 190, 110 200 T 170 200" stroke="#81D4FA" stroke-width="2" fill="none" opacity="0.6" />
-            <path d="M 380 340 Q 410 330, 440 340" stroke="#81D4FA" stroke-width="2" fill="none" opacity="0.6" />
+            <path d="M 40 80 Q 70 70, 100 80 T 160 80" stroke="#81D4FA" strokeWidth="2" fill="none" opacity="0.6" />
+            <path d="M 50 200 Q 80 190, 110 200 T 170 200" stroke="#81D4FA" strokeWidth="2" fill="none" opacity="0.6" />
+            <path d="M 380 340 Q 410 330, 440 340" stroke="#81D4FA" strokeWidth="2" fill="none" opacity="0.6" />
 
             {/* Stylized Illustrated Landmass */}
             <path
@@ -129,7 +129,7 @@ export const PatientJourneys: React.FC = () => {
                  Q 140 90, 180 40 Z"
               fill="url(#landGrad)"
               stroke="#D4AC0D"
-              stroke-width="2"
+              strokeWidth="2"
               opacity="0.85"
             />
 
@@ -142,24 +142,24 @@ export const PatientJourneys: React.FC = () => {
             <path
               d="M 280 110 Q 290 145, 300 180"
               stroke="#F36B32"
-              stroke-width="2.5"
-              stroke-dasharray="6 4"
+              strokeWidth="2.5"
+              strokeDasharray="6 4"
               fill="none"
               opacity="0.7"
             />
             <path
               d="M 300 180 Q 250 240, 230 330"
               stroke="#F36B32"
-              stroke-width="2.5"
-              stroke-dasharray="6 4"
+              strokeWidth="2.5"
+              strokeDasharray="6 4"
               fill="none"
               opacity="0.7"
             />
             <path
               d="M 300 180 Q 330 170, 360 160"
               stroke="#F36B32"
-              stroke-width="2.5"
-              stroke-dasharray="6 4"
+              strokeWidth="2.5"
+              strokeDasharray="6 4"
               fill="none"
               opacity="0.7"
             />
@@ -180,7 +180,7 @@ export const PatientJourneys: React.FC = () => {
                   )}
 
                   {/* Pin Drop Pin Body */}
-                  <circle cx="0" cy="0" r={isActive ? 18 : 14} fill={isActive ? '#F36B32' : '#292521'} stroke="#FFFFFF" stroke-width="3" />
+                  <circle cx="0" cy="0" r={isActive ? 18 : 14} fill={isActive ? '#F36B32' : '#292521'} stroke="#FFFFFF" strokeWidth="3" />
                   <circle cx="0" cy="0" r={isActive ? 8 : 6} fill="#FFFFFF" />
 
                   {/* Label flag */}
@@ -192,7 +192,7 @@ export const PatientJourneys: React.FC = () => {
                     rx="8"
                     fill={isActive ? '#F36B32' : '#FFFFFF'}
                     stroke={isActive ? '#D95424' : '#E9E3DC'}
-                    stroke-width="1.5"
+                    strokeWidth="1.5"
                   />
                   <text
                     x={isActive ? 32 : 28}

@@ -578,6 +578,8 @@ describe('Phase 5 Steps 6-9 Backend APIs (Storybooks, Verification, Routine, Dia
       expect(msgRes.body.data.reply).toContain('Graduation Ceremony 1970');
       expect(msgRes.body.data.suggestedMemories.length).toBeGreaterThanOrEqual(1);
       expect(msgRes.body.data.suggestedMemories[0].id).toBe(memoryVerified1Id);
+      expect(msgRes.body.data.memoryCard.id).toBe(memoryVerified1Id);
+      expect(msgRes.body.data.suggestedPrompts.length).toBeGreaterThanOrEqual(1);
 
       // Verify conversation and message rows were recorded in database
       const conversation = await prisma.conversation.findFirst({
@@ -615,7 +617,7 @@ describe('Phase 5 Steps 6-9 Backend APIs (Storybooks, Verification, Routine, Dia
       expect(msgRes.body.data.reply).toContain('Evening Calcium Pill');
     });
 
-    it('returns gentle reassurance fallback when query does not match specific memory', async () => {
+    it('uses the exact safe fallback when a query does not match a verified memory', async () => {
       const msgRes = await request(app)
         .post(`/api/v1/patients/${patientAId}/companion/message`)
         .set('Authorization', `Bearer ${patientATabletToken}`)
@@ -624,7 +626,11 @@ describe('Phase 5 Steps 6-9 Backend APIs (Storybooks, Verification, Routine, Dia
         });
 
       expect(msgRes.status).toBe(200);
-      expect(msgRes.body.data.reply).toContain('Rajiv');
+      expect(msgRes.body.data.reply).toBe(
+        "I don't have that memory in your family storybook yet. Perhaps someone in your family can tell us more."
+      );
+      expect(msgRes.body.data.memoryCard).toBeNull();
+      expect(msgRes.body.data.suggestedMemories).toHaveLength(0);
     });
   });
 

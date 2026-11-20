@@ -1,7 +1,31 @@
-import { Prisma, VerificationStatus, SenderType } from '@prisma/client';
+import { VerificationStatus, SenderType } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { formatDisplayTime } from './routine.service.js';
+
+const UNKNOWN_MEMORY_REPLY =
+  "I don't have that memory in your family storybook yet. Perhaps someone in your family can tell us more.";
+
+const SEARCH_STOP_WORDS = new Set([
+  'about', 'again', 'could', 'from', 'have', 'memory', 'please', 'show',
+  'tell', 'that', 'their', 'there', 'this', 'what', 'when', 'where', 'which',
+  'with', 'would', 'your'
+]);
+
+function searchTerms(value: string): string[] {
+  return value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((term) => term.length > 2 && !SEARCH_STOP_WORDS.has(term));
+}
+
+function countMatches(queryTerms: string[], value: string | null | undefined): number {
+  if (!value) return 0;
+  const valueTerms = new Set(searchTerms(value));
+  return queryTerms.reduce((count, term) => count + (valueTerms.has(term) ? 1 : 0), 0);
+}
 
 export class CompanionService {
   async getState(patientId: string) {
@@ -119,18 +143,26 @@ export class CompanionService {
           })
       : [];
 
-    // 4. Keyword and recency matching on verified memories
-    const matchedMemories = verifiedMemories.filter((m) => {
-      const matchInTitle = m.title.toLowerCase().includes(lowerText);
-      const matchInDesc = m.description ? m.description.toLowerCase().includes(lowerText) : false;
-      const matchInStory = m.story.toLowerCase().includes(lowerText);
-      const matchInLocation = m.location ? m.location.toLowerCase().includes(lowerText) : false;
-      const matchInEra = m.era.toLowerCase().includes(lowerText);
-      const matchInTags = m.tags.some((t) => lowerText.includes(t.toLowerCase()) || t.toLowerCase().includes(lowerText));
-      const matchInPeople = m.people.some((p) => lowerText.includes(p.person.fullName.toLowerCase()));
+    // 4. Weighted lexical retrieval over VERIFIED memories only. This gives the
+    // local app Clariti-style natural-language recall without sending private
+    // family data to an external model or claiming a match when confidence is low.
+    const queryTerms = searchTerms(text);
+    const matchedMemories = verifiedMemories
+      .map((memory) => {
+        const score =
+          countMatches(queryTerms, memory.title) * 5 +
+          countMatches(queryTerms, memory.tags.join(' ')) * 4 +
+          countMatches(queryTerms, memory.people.map((entry) => entry.person.fullName).join(' ')) * 4 +
+          countMatches(queryTerms, memory.location) * 3 +
+          countMatches(queryTerms, memory.era) * 2 +
+          countMatches(queryTerms, memory.description) * 2 +
+          countMatches(queryTerms, memory.story);
 
-      return matchInTitle || matchInDesc || matchInStory || matchInLocation || matchInEra || matchInTags || matchInPeople;
-    });
+        return { memory, score };
+      })
+      .filter(({ score }) => score >= 3)
+      .sort((a, b) => b.score - a.score)
+      .map(({ memory }) => memory);
 
     // 5. Formulate deterministic companion response
     let reply = '';
@@ -142,18 +174,11 @@ export class CompanionService {
       reply = `Let's check your schedule, ${firstName}. You have "${nextItem.title}" coming up at ${formatDisplayTime(nextItem.scheduledTime)}. We can take our time and do it together!`;
     } else if (suggestedMemories.length > 0) {
       const topMem = suggestedMemories[0];
-      const descSnippet = topMem.description || topMem.story.slice(0, 120);
-      reply = `I remember that so clearly, ${firstName}! "${topMem.title}" from ${topMem.approximateYear || topMem.era}: ${descSnippet}... Would you like to look at the photos together?`;
-    } else if (lowerText.includes('family') || lowerText.includes('who are') || lowerText.includes('people')) {
-      reply = `Your family loves you very much, ${firstName}. They have gathered your precious memories here so we can celebrate them together every day.`;
+      const groundedDetail = topMem.description || topMem.story;
+      reply = `Your family storybook has a verified memory called "${topMem.title}" from ${topMem.approximateYear || topMem.era}. ${groundedDetail} Would you like to look at the photos together?`;
     } else {
-      // Gentle reassuring fallback
-      if (verifiedMemories.length > 0) {
-        const randomMem = verifiedMemories[0];
-        reply = `I'm right here with you, ${firstName}. How about we look at "${randomMem.title}" from ${randomMem.era}? It always brings such a warm smile.`;
-      } else {
-        reply = `Hello ${firstName}, I am right by your side. Take a deep breath and relax. Would you like to listen to some music or look through your photo albums?`;
-      }
+      // Never substitute an unrelated memory or invent a family fact.
+      reply = UNKNOWN_MEMORY_REPLY;
     }
 
     // 6. Record conversation turn transactionally
@@ -196,34 +221,38 @@ export class CompanionService {
       return conv;
     });
 
+    const serializedMemories = suggestedMemories.map((m) => ({
+      id: m.id,
+      title: m.title,
+      description: m.description,
+      story: m.story,
+      eventDate: m.eventDate,
+      approximateYear: m.approximateYear,
+      location: m.location,
+      era: m.era,
+      verificationStatus: m.verificationStatus,
+      album: m.album,
+      people: m.people.map((p) => ({
+        id: p.person.id,
+        fullName: p.person.fullName,
+        profileImage: p.person.profileImage
+      })),
+      media: m.media.map((med) => ({
+        id: med.id,
+        mediaType: med.mediaType,
+        fileName: med.fileName,
+        mimeType: med.mimeType,
+        caption: med.caption,
+        url: null
+      }))
+    }));
+
     return {
       conversationId: conversation.id,
       reply,
-      suggestedMemories: suggestedMemories.map((m) => ({
-        id: m.id,
-        title: m.title,
-        description: m.description,
-        story: m.story,
-        eventDate: m.eventDate,
-        approximateYear: m.approximateYear,
-        location: m.location,
-        era: m.era,
-        verificationStatus: m.verificationStatus,
-        album: m.album,
-        people: m.people.map((p) => ({
-          id: p.person.id,
-          fullName: p.person.fullName,
-          profileImage: p.person.profileImage
-        })),
-        media: m.media.map((med) => ({
-          id: med.id,
-          mediaType: med.mediaType,
-          fileName: med.fileName,
-          mimeType: med.mimeType,
-          caption: med.caption,
-          url: null
-        }))
-      })),
+      memoryCard: serializedMemories[0] || null,
+      suggestedMemories: serializedMemories,
+      suggestedPrompts: verifiedMemories.slice(0, 3).map((memory) => `Tell me about ${memory.title}`),
       suggestedRoutine: suggestedRoutine.map((r) => ({
         id: r.id,
         title: r.title,

@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "npm --prefix backend test",
+    "check": "npm run lint && npm run build && npm test",
     "preview": "vite preview"
   },
   "dependencies": {

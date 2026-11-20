@@ -213,7 +213,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
 
         // 4. Select active patient (Rajiv Sharma demo or first in list)
-        let selected = patients.find(p => p.id === activePatientId) || patients[0];
+        const storedPatientId = getActivePatientId();
+        const selected = patients.find(p => p.id === storedPatientId) || patients[0];
         if (selected) {
           if (isMounted) {
             setActivePatientIdState(selected.id);

@@ -112,30 +112,43 @@ export const conversationService: IConversationService = {
   respond(
     userText: string,
     allMemories: Memory[],
-    allPeople: Person[],
+    _allPeople: Person[],
     patientName: string = 'Rajiv'
   ): AIResponse {
     const q = userText.toLowerCase().trim();
     const verifiedMemories = allMemories.filter(m => m.status === 'verified');
     const pendingMemories = allMemories.filter(m => m.status === 'pending' || m.status === 'ai-suggested');
+    const stopWords = new Set([
+      'about', 'again', 'could', 'from', 'have', 'memory', 'please', 'show',
+      'tell', 'that', 'their', 'there', 'this', 'what', 'when', 'where', 'which',
+      'with', 'would', 'your'
+    ]);
+    const terms = (value: string) => value
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(term => term.length > 2 && !stopWords.has(term));
+    const queryTerms = terms(q);
+    const overlap = (value: string, weight: number) => {
+      const valueTerms = new Set(terms(value));
+      return queryTerms.reduce((score, term) => score + (valueTerms.has(term) ? weight : 0), 0);
+    };
+    const promptFor = (memory: Memory) => `Tell me about ${memory.title}`;
+    const safePrompts = verifiedMemories.slice(0, 4).map(promptFor);
 
     // 1. Safety check: Check if user is asking about unverified / pending memory
-    const stopWords = new Set(['trip', 'with', 'from', 'about', 'your', 'have', 'tell', 'when', 'view', 'views', 'time', 'first', 'look', 'what', 'where']);
     const pendingMatch = pendingMemories.find(m => {
-      const specificWords = m.title.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !stopWords.has(w));
+      const specificWords = terms(m.title);
       const titleHit = specificWords.some(w => q.includes(w));
-      const locHit = m.location && m.location.toLowerCase().split(/[\s,]+/).filter(w => w.length > 3 && !stopWords.has(w)).some(w => q.includes(w));
+      const locHit = m.location && terms(m.location).some(w => q.includes(w));
       return titleHit || locHit;
     });
 
     if (pendingMatch) {
       return {
         text: `A family member has suggested a memory about "${pendingMatch.title}", but it hasn't been confirmed yet by your family. Would you like to explore one of your verified memories instead?`,
-        suggestedPrompts: [
-          'Tell me about my Goa trip',
-          'What happened on my wedding day?',
-          'Tell me about my family'
-        ]
+        suggestedPrompts: safePrompts
       };
     }
 
@@ -143,139 +156,44 @@ export const conversationService: IConversationService = {
     if (q.includes('hello') || q.includes('hi') || q.includes('good morning') || q.includes('good afternoon') || q.includes('good evening')) {
       return {
         text: `Hello ${patientName}! It is lovely to spend time with you today. Would you like to revisit a beautiful memory together, or listen to some soothing music?`,
-        suggestedPrompts: [
-          'Tell me about my family',
-          'What happened on my wedding day?',
-          'Tell me about my Goa trip',
-          'Let’s listen to my favourite music'
-        ]
+        suggestedPrompts: [...safePrompts.slice(0, 3), 'Let’s listen to my favourite music']
       };
     }
 
-    // 3. Goa Trip
-    if (q.includes('goa') || q.includes('beach') || q.includes('ocean') || q.includes('calangute')) {
-      const goaMem = verifiedMemories.find(m => m.id === 'mem-1998');
-      return {
-        text: `Of course, ${patientName}! Your family visited Goa in 1998. Anita and Riya were with you. You walked on the golden sand and enjoyed sweet coconut water at sunset. Would you like to see the photographs from that trip?`,
-        memoryCard: goaMem,
-        suggestedPrompts: [
-          'Who was with me in Goa?',
-          'Show me my wedding photographs',
-          'Tell me about my childhood'
-        ]
-      };
-    }
-
-    // 4. Wedding Day / Anita
-    if (q.includes('wedding') || q.includes('anita') || q.includes('marry') || q.includes('marriage')) {
-      const weddingMem = verifiedMemories.find(m => m.id === 'mem-1985');
-      return {
-        text: `You and Anita were married on November 22, 1985, under a beautiful mandap of fresh orange marigolds and fragrant jasmine. Anita wore a deep red silk saree, and your family danced with great joy.`,
-        memoryCard: weddingMem,
-        suggestedPrompts: [
-          'Tell me about Riya',
-          'Tell me about my Goa trip',
-          'Show me my old photographs'
-        ]
-      };
-    }
-
-    // 5. Family & Children
-    if (q.includes('family') || q.includes('riya') || q.includes('daniel') || q.includes('grandson') || q.includes('daughter')) {
-      const famMem = verifiedMemories.find(m => m.id === 'mem-2019') || verifiedMemories.find(m => m.id === 'mem-2001');
-      return {
-        text: `Your family loves you very dearly, ${patientName}. Your wife Anita, your daughter Riya, and your bright grandson Daniel bring so much laughter to your home. Daniel loves walking in the garden and hearing your stories.`,
-        memoryCard: famMem,
-        suggestedPrompts: [
-          'Tell me about grandson Daniel',
-          'What happened on my wedding day?',
-          'Tell me about my college days'
-        ]
-      };
-    }
-
-    // 6. Daniel (Grandson)
-    if (q.includes('daniel') || q.includes('grandson') || q.includes('tulip')) {
-      const danielMem = verifiedMemories.find(m => m.id === 'mem-2019');
-      return {
-        text: `Daniel is your 6-year-old grandson! He loves running through flower meadows with you and holding your hand. You showed him how to whistle with a green leaf in the spring of 2019.`,
-        memoryCard: danielMem,
-        suggestedPrompts: [
-          'Tell me about my daughter Riya',
-          'Tell me about my wedding day',
-          'Let’s listen to some music'
-        ]
-      };
-    }
-
-    // 7. College Days / Suresh / Engineering
-    if (q.includes('college') || q.includes('suresh') || q.includes('engineering') || q.includes('stephens') || q.includes('degree')) {
-      const collegeMem = verifiedMemories.find(m => m.id === 'mem-1978');
-      return {
-        text: `In 1978, you graduated with honors in Civil Engineering from St. Stephens College alongside your lifelong friend Suresh. You both celebrated with warm samosas and cardamom tea.`,
-        memoryCard: collegeMem,
-        suggestedPrompts: [
-          'Tell me about my first bicycle',
-          'What happened on my wedding day?',
-          'Tell me about my Goa trip'
-        ]
-      };
-    }
-
-    // 8. Childhood / Bicycle / Shimla
-    if (q.includes('childhood') || q.includes('bicycle') || q.includes('bike') || q.includes('shimla') || q.includes('young')) {
-      const childMem = verifiedMemories.find(m => m.id === 'mem-1960');
-      return {
-        text: `When you were growing up in Shimla hills around 1960, your father gave you a shiny red bicycle. You loved racing down the gentle slope with the crisp hill breeze on your face.`,
-        memoryCard: childMem,
-        suggestedPrompts: [
-          'Tell me about my school days',
-          'What happened on my wedding day?',
-          'Tell me about my family'
-        ]
-      };
-    }
-
-    // 9. Music / Songs
+    // 3. Music is an app action, not a claim about a person's past.
     if (q.includes('music') || q.includes('song') || q.includes('listen') || q.includes('sing')) {
       return {
-        text: `Music is such a wonderful way to bring peace to the mind. You have lovely melodies saved from your wedding and your trip to Goa. Shall we listen to a gentle melody together?`,
-        suggestedPrompts: [
-          'Play Goa beach melody',
-          'Play Here Comes the Sun',
-          'Tell me about my family'
-        ]
+        text: 'We can open your saved music together. Choose a familiar song whenever you are ready.',
+        suggestedPrompts: safePrompts.slice(0, 3)
       };
     }
 
-    // 10. General search across verified memories
-    const matchedMem = verifiedMemories.find(m => 
-      m.title.toLowerCase().split(' ').some(w => w.length > 3 && q.includes(w)) ||
-      m.location.toLowerCase().split(' ').some(w => w.length > 3 && q.includes(w)) ||
-      m.tags.some(t => q.includes(t.toLowerCase()))
-    );
+    // 4. Weighted retrieval across family-verified fields only.
+    const matchedMem = verifiedMemories
+      .map(memory => ({
+        memory,
+        score:
+          overlap(memory.title, 5) +
+          overlap(memory.tags.join(' '), 4) +
+          overlap(memory.location, 3) +
+          overlap(memory.era, 2) +
+          overlap(memory.story, 1)
+      }))
+      .filter(result => result.score >= 3)
+      .sort((a, b) => b.score - a.score)[0]?.memory;
 
     if (matchedMem) {
       return {
-        text: `Here is a verified memory from your family storybook: "${matchedMem.title}". ${matchedMem.story}`,
+        text: `Your family storybook has a verified memory called "${matchedMem.title}". ${matchedMem.story}`,
         memoryCard: matchedMem,
-        suggestedPrompts: [
-          'Tell me about my family',
-          'Show me my wedding photographs',
-          'What happened on my Goa trip?'
-        ]
+        suggestedPrompts: safePrompts.filter(prompt => prompt !== promptFor(matchedMem)).slice(0, 3)
       };
     }
 
     // EXACT REQUIRED UNKNOWN FALLBACK
     return {
       text: "I don't have that memory in your family storybook yet. Perhaps someone in your family can tell us more.",
-      suggestedPrompts: [
-        'Tell me about my family',
-        'Tell me about my wedding day',
-        'Tell me about my Goa trip',
-        'Tell me about my childhood'
-      ]
+      suggestedPrompts: safePrompts
     };
   }
 };

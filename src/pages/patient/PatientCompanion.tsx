@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../store/AppContext';
 import { conversationService, speechService, voiceService } from '../../services';
@@ -11,21 +11,18 @@ import {
   Send, 
   Volume2, 
   VolumeX, 
-  Sparkles, 
   BookOpen, 
   MapPin, 
-  Calendar,
-  Music,
-  Smile
+  Calendar
 } from 'lucide-react';
-import { ChatMessage, Memory } from '../../types';
+import { ChatMessage } from '../../types';
 
 export const PatientCompanion: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialPrompt = searchParams.get('prompt');
 
-  const { memories, people, patientName, playSong, songs, voiceEnabled, activePatientId } = useApp();
+  const { memories, people, patientName, voiceEnabled, activePatientId } = useApp();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -50,20 +47,14 @@ export const PatientCompanion: React.FC = () => {
   const [voiceNotice, setVoiceNotice] = useState<string>('');
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const initialPromptHandledRef = useRef(false);
 
   // Auto-scroll to latest message
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
 
-  // Handle passed initial prompt
-  useEffect(() => {
-    if (initialPrompt) {
-      handleUserSubmit(initialPrompt);
-    }
-  }, [initialPrompt]);
-
-  const handleUserSubmit = async (queryText: string) => {
+  const handleUserSubmit = useCallback(async (queryText: string) => {
     const text = queryText.trim();
     if (!text) return;
 
@@ -115,8 +106,6 @@ export const PatientCompanion: React.FC = () => {
       }
 
       setMessages(prev => [...prev, companionMsg]);
-      setIsThinking(false);
-
       // Auto-speak if voice is enabled
       if (voiceEnabled) {
         setIsSpeaking(true);
@@ -126,9 +115,24 @@ export const PatientCompanion: React.FC = () => {
       }
     } catch (err) {
       console.warn('Companion response error', err);
+      setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`,
+        sender: 'companion',
+        text: 'I could not reach the family storybook just now. Please try again in a moment.',
+        timestamp: 'Just now'
+      }]);
+    } finally {
       setIsThinking(false);
     }
-  };
+  }, [activePatientId, memories, patientName, people, voiceEnabled]);
+
+  // Handle a passed prompt exactly once, including under React Strict Mode.
+  useEffect(() => {
+    if (initialPrompt && !initialPromptHandledRef.current) {
+      initialPromptHandledRef.current = true;
+      void handleUserSubmit(initialPrompt);
+    }
+  }, [handleUserSubmit, initialPrompt]);
 
   const handleMicToggle = () => {
     if (isListening) {
@@ -228,13 +232,15 @@ export const PatientCompanion: React.FC = () => {
                     {/* Verified Memory Spotlight Card Attachment (Sofia reference photo card) */}
                     {msg.memoryCard && (
                       <div className="mt-4 pt-4 border-t border-warm-sand bg-warm-cream/50 rounded-2xl p-4 flex flex-col sm:flex-row gap-4 items-center">
-                        <div className="w-full sm:w-44 aspect-[4/3] rounded-xl overflow-hidden bg-white shadow-soft shrink-0 border border-white">
-                          <img
-                            src={msg.memoryCard.media[0]?.url}
-                            alt={msg.memoryCard.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
+                        {msg.memoryCard.media[0]?.url && (
+                          <div className="w-full sm:w-44 aspect-[4/3] rounded-xl overflow-hidden bg-white shadow-soft shrink-0 border border-white">
+                            <img
+                              src={msg.memoryCard.media[0].url}
+                              alt={msg.memoryCard.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
                         <div className="flex-1">
                           <div className="flex items-center gap-2 text-xs font-semibold text-ink-secondary">
                             <Calendar className="w-3.5 h-3.5 text-primary" />
@@ -312,6 +318,7 @@ export const PatientCompanion: React.FC = () => {
           {/* Big Mic Button */}
           <button
             onClick={handleMicToggle}
+            disabled={isThinking}
             className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-soft transition-all hover:scale-105 active:scale-95 ${
               isListening
                 ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200'
@@ -329,13 +336,14 @@ export const PatientCompanion: React.FC = () => {
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleUserSubmit(inputText)}
+              onKeyDown={(e) => e.key === 'Enter' && !isThinking && handleUserSubmit(inputText)}
+              disabled={isThinking}
               placeholder="Type anything or ask a question about your memories..."
               className="w-full bg-white rounded-2xl py-3.5 pl-4 pr-12 text-ink-primary placeholder:text-ink-muted border-2 border-warm-sand focus:border-primary shadow-sm outline-none text-base sm:text-lg"
             />
             <button
               onClick={() => handleUserSubmit(inputText)}
-              disabled={!inputText.trim()}
+              disabled={!inputText.trim() || isThinking}
               className="absolute right-2.5 p-2 rounded-xl bg-primary text-white disabled:opacity-30 disabled:pointer-events-none hover:bg-primary-hover transition-colors"
               aria-label="Send message"
             >

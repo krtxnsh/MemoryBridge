@@ -633,6 +633,7 @@ export const companionApi = {
     const res = await apiRequest<{
       reply: string;
       memoryCard?: any;
+      suggestedMemories?: any[];
       suggestedPrompts?: string[];
     }>(`/patients/${patientId}/companion/message`, {
       method: 'POST',
@@ -640,12 +641,14 @@ export const companionApi = {
       usePatientToken: true
     });
 
+    const matchedMemory = res.memoryCard || res.suggestedMemories?.[0];
+
     return {
       id: `comp-${Date.now()}`,
       sender: 'companion',
       text: res.reply,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      memoryCard: res.memoryCard ? toFrontendMemory(res.memoryCard) : undefined,
+      memoryCard: matchedMemory ? toFrontendMemory(matchedMemory) : undefined,
       suggestedPrompts: res.suggestedPrompts
     };
   }
