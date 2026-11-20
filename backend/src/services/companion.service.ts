@@ -2,30 +2,10 @@ import { VerificationStatus, SenderType } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { formatDisplayTime } from './routine.service.js';
+import { embeddingService } from './embedding.service.js';
 
 const UNKNOWN_MEMORY_REPLY =
   "I don't have that memory in your family storybook yet. Perhaps someone in your family can tell us more.";
-
-const SEARCH_STOP_WORDS = new Set([
-  'about', 'again', 'could', 'from', 'have', 'memory', 'please', 'show',
-  'tell', 'that', 'their', 'there', 'this', 'what', 'when', 'where', 'which',
-  'with', 'would', 'your'
-]);
-
-function searchTerms(value: string): string[] {
-  return value
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter((term) => term.length > 2 && !SEARCH_STOP_WORDS.has(term));
-}
-
-function countMatches(queryTerms: string[], value: string | null | undefined): number {
-  if (!value) return 0;
-  const valueTerms = new Set(searchTerms(value));
-  return queryTerms.reduce((count, term) => count + (valueTerms.has(term) ? 1 : 0), 0);
-}
 
 export class CompanionService {
   async getState(patientId: string) {
@@ -73,7 +53,7 @@ export class CompanionService {
       verifiedMemoryCount,
       upcomingRoutineCount: routineCount,
       recentConversationId: latestConversation?.id || null,
-      explanation: 'Rule-based memory companion (LLM integration deferred)'
+      explanation: 'Rule-based memory companion with verified semantic retrieval'
     };
   }
 
@@ -94,23 +74,20 @@ export class CompanionService {
     const firstName = patient.fullName.split(' ')[0] || patient.fullName;
     const lowerText = text.toLowerCase();
 
-    // 1. Fetch VERIFIED memories for this patient only
-    const verifiedMemories = await prisma.memory.findMany({
-      where: {
-        patientId,
-        deletedAt: null,
-        verificationStatus: VerificationStatus.VERIFIED
-      },
-      include: {
-        people: { include: { person: true } },
-        album: true,
-        media: {
-          where: { deletedAt: null },
-          select: { id: true, mediaType: true, fileName: true, mimeType: true, caption: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    // 1. Search only VERIFIED memories inside the active patient workspace.
+    const [retrievedMemories, promptMemories] = await Promise.all([
+      embeddingService.retrieveVerified(patientId, text, 3),
+      prisma.memory.findMany({
+        where: {
+          patientId,
+          deletedAt: null,
+          verificationStatus: VerificationStatus.VERIFIED
+        },
+        select: { title: true },
+        orderBy: { createdAt: 'desc' },
+        take: 3
+      })
+    ]);
 
     // 2. Fetch Routine items
     const routineItems = await prisma.routineItem.findMany({
@@ -143,31 +120,12 @@ export class CompanionService {
           })
       : [];
 
-    // 4. Weighted lexical retrieval over VERIFIED memories only. This gives the
-    // local app Clariti-style natural-language recall without sending private
-    // family data to an external model or claiming a match when confidence is low.
-    const queryTerms = searchTerms(text);
-    const matchedMemories = verifiedMemories
-      .map((memory) => {
-        const score =
-          countMatches(queryTerms, memory.title) * 5 +
-          countMatches(queryTerms, memory.tags.join(' ')) * 4 +
-          countMatches(queryTerms, memory.people.map((entry) => entry.person.fullName).join(' ')) * 4 +
-          countMatches(queryTerms, memory.location) * 3 +
-          countMatches(queryTerms, memory.era) * 2 +
-          countMatches(queryTerms, memory.description) * 2 +
-          countMatches(queryTerms, memory.story);
-
-        return { memory, score };
-      })
-      .filter(({ score }) => score >= 3)
-      .sort((a, b) => b.score - a.score)
-      .map(({ memory }) => memory);
-
-    // 5. Formulate deterministic companion response
+    // 4. Formulate a deterministic, grounded companion response.
     let reply = '';
-    const suggestedMemories = matchedMemories.slice(0, 3);
+    const suggestedMemories = retrievedMemories.map(({ memory }) => memory);
+    const topRetrieval = retrievedMemories[0] || null;
     const suggestedRoutine = matchedRoutine.slice(0, 3);
+    const answerRetrieval = isRoutineQuery && suggestedRoutine.length > 0 ? null : topRetrieval;
 
     if (isRoutineQuery && suggestedRoutine.length > 0) {
       const nextItem = suggestedRoutine[0];
@@ -214,7 +172,8 @@ export class CompanionService {
           conversationId: conv.id,
           senderType: SenderType.COMPANION,
           messageText: reply,
-          relatedMemoryId: suggestedMemories[0]?.id || null
+          relatedMemoryId: answerRetrieval?.memory.id || null,
+          retrievalScore: answerRetrieval?.score || null
         }
       });
 
@@ -237,6 +196,7 @@ export class CompanionService {
         fullName: p.person.fullName,
         profileImage: p.person.profileImage
       })),
+      retrievalScore: retrievedMemories.find((result) => result.memory.id === m.id)?.score || null,
       media: m.media.map((med) => ({
         id: med.id,
         mediaType: med.mediaType,
@@ -252,7 +212,7 @@ export class CompanionService {
       reply,
       memoryCard: serializedMemories[0] || null,
       suggestedMemories: serializedMemories,
-      suggestedPrompts: verifiedMemories.slice(0, 3).map((memory) => `Tell me about ${memory.title}`),
+      suggestedPrompts: promptMemories.map((memory) => `Tell me about ${memory.title}`),
       suggestedRoutine: suggestedRoutine.map((r) => ({
         id: r.id,
         title: r.title,
@@ -262,7 +222,16 @@ export class CompanionService {
         category: r.category,
         completed: r.completed
       })),
-      explanation: 'Rule-based memory companion (LLM integration deferred)'
+      retrieval: answerRetrieval ? {
+        supportingMemoryId: answerRetrieval.memory.id,
+        score: answerRetrieval.score,
+        ...embeddingService.metadata
+      } : {
+        supportingMemoryId: null,
+        score: null,
+        ...embeddingService.metadata
+      },
+      explanation: 'Rule-based companion grounded by verified semantic memory retrieval'
     };
   }
 }

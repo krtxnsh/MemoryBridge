@@ -48,13 +48,13 @@ MemoryBridge is a caregiver-governed memory recall system. Its primary contribut
 
 ### Phase 4 — Semantic verified-memory retrieval
 
-- [ ] Enable PostgreSQL `pgvector`
-- [ ] Introduce an embedding-provider interface
-- [ ] Generate embeddings only after a memory is verified
-- [ ] Search within the active patient workspace using cosine similarity
-- [ ] Require a configurable confidence threshold
-- [ ] Store the supporting memory ID and retrieval score with each answer
-- [ ] Add evaluation cases for paraphrases, false matches and pending-memory leakage
+- [ ] Replace portable PostgreSQL array storage with `pgvector` when the deployment database provides the extension
+- [x] Introduce an embedding-provider interface
+- [x] Generate embeddings only after a memory is verified
+- [x] Search within the active patient workspace using cosine similarity
+- [x] Require a configurable confidence threshold
+- [x] Store the supporting memory ID and retrieval score with each answer
+- [x] Add evaluation cases for paraphrases, false matches and pending-memory leakage
 
 ### Phase 5 — Caregiver-reviewed AI descriptions
 

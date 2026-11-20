@@ -1,7 +1,8 @@
-import { Prisma, VerificationStatus, AccessRole } from '@prisma/client';
+import { Prisma, VerificationStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { verificationRepository } from '../repositories/verification.repository.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { embeddingService } from './embedding.service.js';
 
 export class VerificationService {
   async listVerifications(
@@ -125,6 +126,8 @@ export class VerificationService {
       memory.patientId,
       comments
     );
+
+    await embeddingService.embedVerifiedMemory(memoryId);
 
     return {
       id: updatedMemory.id,

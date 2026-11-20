@@ -42,7 +42,10 @@ export const envSchema = z
     FIREBASE_PRIVATE_KEY: z.string().optional().default(''),
     FIREBASE_STORAGE_BUCKET: z.string().optional().default(''),
 
-    AI_PROVIDER: z.enum(['none', 'rule_based']).default('none')
+    AI_PROVIDER: z.enum(['none', 'rule_based']).default('none'),
+    EMBEDDING_PROVIDER: z.enum(['local_semantic']).default('local_semantic'),
+    MEMORY_RETRIEVAL_THRESHOLD: z.coerce.number().min(0).max(1).default(0.24),
+    MEMORY_RETRIEVAL_MIN_COVERAGE: z.coerce.number().min(0).max(1).default(0.34)
   })
   .superRefine((data, ctx) => {
     // Separate secrets requirement

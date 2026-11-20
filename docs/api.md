@@ -117,7 +117,7 @@ MemoryBridge backend adheres strictly to the `{ data, error }` response envelope
 - `POST /api/v1/patients/:patientId/diary` — Create or upsert daily diary recap.
 - `GET /api/v1/patients/:patientId/dashboard` — Aggregated dashboard statistics (role-filtered).
 - `GET /api/v1/patients/:patientId/graph` — Knowledge graph of people and memory co-occurrences.
-- `POST /api/v1/patients/:patientId/companion/message` — Safe companion interaction (`tablet` permitted).
+- `POST /api/v1/patients/:patientId/companion/message` — Safe companion interaction (`tablet` permitted). Searches verified memories only and returns `retrieval` provenance with the supporting memory ID, cosine score, model and configured threshold.
 
 ---
 

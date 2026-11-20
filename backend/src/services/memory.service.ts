@@ -355,7 +355,7 @@ export class MemoryService {
         mapY: input.mapY ?? null,
         mapLabel: input.mapLabel || null,
         contentHash,
-        embeddingStatus: EmbeddingStatus.PENDING,
+        embeddingStatus: EmbeddingStatus.NONE,
         album: input.albumId ? { connect: { id: input.albumId } } : undefined
       },
       uniquePersonIds
@@ -512,7 +512,14 @@ export class MemoryService {
           verificationStatus: nextStatus,
           approvedById: nextApprovedBy,
           contentHash,
-          embeddingStatus: contentFieldsChanged ? EmbeddingStatus.PENDING : undefined
+          embeddingStatus: contentFieldsChanged
+            ? nextStatus === VerificationStatus.VERIFIED
+              ? EmbeddingStatus.PENDING
+              : EmbeddingStatus.NONE
+            : undefined,
+          embedding: contentFieldsChanged ? [] : undefined,
+          embeddingModel: contentFieldsChanged ? null : undefined,
+          embeddingUpdatedAt: contentFieldsChanged ? null : undefined
         },
         include: {
           people: { include: { person: true } },

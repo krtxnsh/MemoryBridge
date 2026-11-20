@@ -1,4 +1,4 @@
-import { Prisma, VerificationStatus, Memory } from '@prisma/client';
+import { EmbeddingStatus, Prisma, VerificationStatus } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 
 export class VerificationRepository {
@@ -85,7 +85,8 @@ export class VerificationRepository {
         where: { id: memoryId },
         data: {
           verificationStatus: VerificationStatus.VERIFIED,
-          approvedById: verifierId
+          approvedById: verifierId,
+          embeddingStatus: EmbeddingStatus.PENDING
         },
         include: {
           people: { include: { person: true } },
@@ -140,7 +141,11 @@ export class VerificationRepository {
         where: { id: memoryId },
         data: {
           verificationStatus: VerificationStatus.REJECTED,
-          approvedById: null
+          approvedById: null,
+          embeddingStatus: EmbeddingStatus.NONE,
+          embedding: [],
+          embeddingModel: null,
+          embeddingUpdatedAt: null
         },
         include: {
           people: { include: { person: true } },

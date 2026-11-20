@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/config/prisma.js';
-import { VerificationStatus, AccessRole, RoutinePeriod, RoutineCategory } from '@prisma/client';
+import { VerificationStatus, AccessRole, RoutinePeriod, RoutineCategory, EmbeddingStatus } from '@prisma/client';
 
 describe('Phase 5 Steps 6-9 Backend APIs (Storybooks, Verification, Routine, Diary, Dashboard, Companion)', () => {
   const app = createApp();
@@ -367,6 +367,11 @@ describe('Phase 5 Steps 6-9 Backend APIs (Storybooks, Verification, Routine, Dia
         where: { memoryId: memoryPendingId, status: VerificationStatus.VERIFIED }
       });
       expect(verRow).toBeDefined();
+
+      const embeddedMemory = await prisma.memory.findUniqueOrThrow({ where: { id: memoryPendingId } });
+      expect(embeddedMemory.embeddingStatus).toBe(EmbeddingStatus.READY);
+      expect(embeddedMemory.embedding.length).toBe(256);
+      expect(embeddedMemory.embeddingModel).toBe('local-semantic-v2');
     });
 
     it('rejects a memory transactionally (status -> REJECTED, approvedById cleared, Verification row written)', async () => {
@@ -589,6 +594,64 @@ describe('Phase 5 Steps 6-9 Backend APIs (Storybooks, Verification, Routine, Dia
       expect(conversation).toBeDefined();
       expect(conversation?.messages.some((m) => m.senderType === 'USER')).toBe(true);
       expect(conversation?.messages.some((m) => m.senderType === 'COMPANION')).toBe(true);
+      const groundedReply = conversation?.messages.find((m) => m.relatedMemoryId === memoryVerified1Id);
+      expect(groundedReply?.retrievalScore).toBeGreaterThan(0);
+    });
+
+    it('retrieves a verified memory for a semantic paraphrase and returns provenance', async () => {
+      const msgRes = await request(app)
+        .post(`/api/v1/patients/${patientAId}/companion/message`)
+        .set('Authorization', `Bearer ${patientATabletToken}`)
+        .send({ text: 'When did I receive my university degree?' });
+
+      expect(msgRes.status).toBe(200);
+      expect(msgRes.body.data.memoryCard.id).toBe(memoryVerified1Id);
+      expect(msgRes.body.data.retrieval.supportingMemoryId).toBe(memoryVerified1Id);
+      expect(msgRes.body.data.retrieval.score).toBeGreaterThanOrEqual(
+        msgRes.body.data.retrieval.threshold
+      );
+      expect(msgRes.body.data.retrieval.model).toBe('local-semantic-v2');
+    });
+
+    it('never embeds or retrieves a pending memory', async () => {
+      const verifiedPicnic = await request(app)
+        .post(`/api/v1/patients/${patientAId}/memories`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          title: 'Ordinary Sunday Picnic',
+          story: 'Lunch together in the city park.',
+          era: '1980s',
+          tags: ['Picnic', 'Park']
+        });
+      await request(app)
+        .post(`/api/v1/memories/${verifiedPicnic.body.data.id}/verify`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ comments: 'Confirmed ordinary park picnic' });
+
+      const pending = await request(app)
+        .post(`/api/v1/patients/${patientAId}/memories`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          title: 'Secret Moonlight Picnic',
+          story: 'A moonlight picnic with cousins beside the observatory.',
+          era: '1980s',
+          tags: ['Moonlight', 'Observatory', 'Cousins']
+        });
+
+      const msgRes = await request(app)
+        .post(`/api/v1/patients/${patientAId}/companion/message`)
+        .set('Authorization', `Bearer ${patientATabletToken}`)
+        .send({ text: 'Tell me about the moonlight observatory picnic with my cousins' });
+
+      expect(msgRes.status).toBe(200);
+      expect(msgRes.body.data.reply).toBe(
+        "I don't have that memory in your family storybook yet. Perhaps someone in your family can tell us more."
+      );
+      expect(msgRes.body.data.retrieval.supportingMemoryId).toBeNull();
+
+      const stored = await prisma.memory.findUniqueOrThrow({ where: { id: pending.body.data.id } });
+      expect(stored.embeddingStatus).toBe(EmbeddingStatus.NONE);
+      expect(stored.embedding).toHaveLength(0);
     });
 
     it('processes routine intent query and returns suggested upcoming routine items', async () => {
@@ -631,6 +694,8 @@ describe('Phase 5 Steps 6-9 Backend APIs (Storybooks, Verification, Routine, Dia
       );
       expect(msgRes.body.data.memoryCard).toBeNull();
       expect(msgRes.body.data.suggestedMemories).toHaveLength(0);
+      expect(msgRes.body.data.retrieval.supportingMemoryId).toBeNull();
+      expect(msgRes.body.data.retrieval.score).toBeNull();
     });
   });
 

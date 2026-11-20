@@ -228,6 +228,9 @@ model Memory {
   mapLabel           String?
   contentHash        String?
   embeddingStatus    EmbeddingStatus    @default(NONE)
+  embedding          Float[]            @default([])
+  embeddingModel     String?
+  embeddingUpdatedAt DateTime?
   deletedAt          DateTime?
   createdBy          String
   createdAt          DateTime           @default(now())
@@ -484,6 +487,7 @@ model Message {
   senderType      SenderType
   messageText     String
   relatedMemoryId String?
+  retrievalScore  Float?
   createdAt       DateTime   @default(now())
 
   conversation  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
