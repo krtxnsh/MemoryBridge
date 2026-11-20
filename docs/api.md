@@ -31,6 +31,12 @@ MemoryBridge backend adheres strictly to the `{ data, error }` response envelope
 - `POST /api/v1/auth/logout` — Invalidate refresh token and clear cookie.
 - `GET /api/v1/auth/me` — Return current authenticated user profile.
 
+### Family workspace access
+
+- `GET /api/v1/patients/:patientId/access` — List workspace members (caregiver or owner).
+- `PATCH /api/v1/patients/:patientId/access/:accessId` — Change a non-owner member role or relationship (owner only).
+- `DELETE /api/v1/patients/:patientId/access/:accessId` — Revoke a non-owner member's access (owner only).
+
 ---
 
 ## 2. Patients & Tablet Sessions (`/api/v1/patients`)

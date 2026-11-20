@@ -21,3 +21,8 @@ export const updatePatientSchema = z.object({
 export const createPatientSessionSchema = z.object({
   durationMinutes: z.coerce.number().int().min(15).max(10080).default(1440) // Default 24 hours
 });
+
+export const updateAccessSchema = z.object({
+  accessRole: z.enum(['CAREGIVER', 'FAMILY', 'VIEWER']),
+  relationship: z.string().trim().min(1).max(100).optional()
+});

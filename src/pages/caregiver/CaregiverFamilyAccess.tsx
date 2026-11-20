@@ -1,32 +1,84 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Clock3, Copy, KeyRound, RefreshCw, ShieldCheck, UserPlus, X } from 'lucide-react';
-import { invitationApi, PatientInvitation } from '../../api/client';
+import { Check, Clock3, Copy, Crown, KeyRound, RefreshCw, ShieldCheck, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { accessApi, invitationApi, PatientInvitation, WorkspaceMember } from '../../api/client';
 import { useApp } from '../../store/AppContext';
 
 export const CaregiverFamilyAccess: React.FC = () => {
-  const { activePatientId, patientName, showToast } = useApp();
+  const { activePatientId, activePatient, patientName, showToast } = useApp();
+  const canViewAccess = ['OWNER', 'CAREGIVER'].includes(activePatient?.accessRole || '');
   const [invitations, setInvitations] = useState<PatientInvitation[]>([]);
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [relationship, setRelationship] = useState('Family member');
   const [accessRole, setAccessRole] = useState<'FAMILY' | 'VIEWER'>('FAMILY');
   const [expiresInHours, setExpiresInHours] = useState(72);
   const [newCode, setNewCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [memberBusyId, setMemberBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const loadInvitations = useCallback(async () => {
-    if (!activePatientId) return;
+    if (!activePatientId || !canViewAccess) return;
     try {
       setInvitations(await invitationApi.list(activePatientId));
     } catch (loadError: any) {
       setError(loadError.message || 'Could not load invitations.');
     }
-  }, [activePatientId]);
+  }, [activePatientId, canViewAccess]);
+
+  const loadMembers = useCallback(async () => {
+    if (!activePatientId || !canViewAccess) return;
+    try {
+      setMembers(await accessApi.list(activePatientId));
+    } catch (loadError: any) {
+      setError(loadError.message || 'Could not load family members.');
+    }
+  }, [activePatientId, canViewAccess]);
 
   useEffect(() => {
     // Loading remote invitation state is the synchronization purpose of this effect.
     // oxlint-disable-next-line react/set-state-in-effect
     void loadInvitations();
-  }, [loadInvitations]);
+    void loadMembers();
+  }, [loadInvitations, loadMembers]);
+
+  const currentMember = members.find((member) => member.isCurrentUser);
+  const canManageMembers = currentMember?.accessRole === 'OWNER';
+
+  const updateMemberRole = async (
+    member: WorkspaceMember,
+    accessRole: 'CAREGIVER' | 'FAMILY' | 'VIEWER'
+  ) => {
+    if (!activePatientId) return;
+    setError('');
+    setMemberBusyId(member.id);
+    try {
+      const updated = await accessApi.update(activePatientId, member.id, { accessRole });
+      setMembers((current) => current.map((item) => item.id === member.id ? updated : item));
+      showToast(`${member.user.name}'s permission was updated.`, 'success');
+    } catch (updateError: any) {
+      setError(updateError.message || 'Could not update family access.');
+      await loadMembers();
+    } finally {
+      setMemberBusyId(null);
+    }
+  };
+
+  const removeMember = async (member: WorkspaceMember) => {
+    if (!activePatientId) return;
+    const confirmed = window.confirm(`Remove ${member.user.name} from ${patientName}'s workspace?`);
+    if (!confirmed) return;
+    setError('');
+    setMemberBusyId(member.id);
+    try {
+      await accessApi.remove(activePatientId, member.id);
+      setMembers((current) => current.filter((item) => item.id !== member.id));
+      showToast(`${member.user.name}'s access was removed.`, 'amber');
+    } catch (removeError: any) {
+      setError(removeError.message || 'Could not remove family access.');
+    } finally {
+      setMemberBusyId(null);
+    }
+  };
 
   const createInvitation = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -73,6 +125,16 @@ export const CaregiverFamilyAccess: React.FC = () => {
     return { label: 'Active', classes: 'bg-amber-50 text-amber-700' };
   };
 
+  if (!canViewAccess) {
+    return (
+      <div className="max-w-2xl mx-auto rounded-3xl bg-white border border-surface-border p-8 shadow-soft text-center">
+        <ShieldCheck className="w-10 h-10 text-primary mx-auto" />
+        <h1 className="font-serif text-2xl font-bold text-ink-primary mt-4">Caregiver access required</h1>
+        <p className="text-ink-secondary mt-2">Only the workspace owner or a caregiver can view invitations and members.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto w-full space-y-6 animate-fadeIn pb-12">
       <div>
@@ -84,6 +146,72 @@ export const CaregiverFamilyAccess: React.FC = () => {
           Invite trusted relatives to contribute to {patientName}&apos;s storybook. Codes expire and can be used only once.
         </p>
       </div>
+
+      {error && <p className="rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</p>}
+
+      <section className="bg-white rounded-3xl border border-surface-border p-6 shadow-soft">
+        <div className="flex items-center justify-between gap-3 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-warm-peach text-primary grid place-items-center"><Users className="w-5 h-5" /></div>
+            <div>
+              <h2 className="font-serif text-xl font-bold text-ink-primary">Workspace members</h2>
+              <p className="text-xs text-ink-secondary">
+                {canManageMembers ? 'As owner, you can change permissions or remove access.' : 'Only the workspace owner can change permissions.'}
+              </p>
+            </div>
+          </div>
+          <button onClick={() => void loadMembers()} className="p-2.5 rounded-xl hover:bg-warm-cream" aria-label="Refresh members">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="divide-y divide-surface-border">
+          {members.map((member) => {
+            const isOwner = member.accessRole === 'OWNER';
+            const isBusy = memberBusyId === member.id;
+            return (
+              <div key={member.id} className="py-4 first:pt-0 last:pb-0 flex flex-col md:flex-row md:items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-ink-primary">{member.user.name}</span>
+                    {isOwner && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-[11px] font-bold"><Crown className="w-3 h-3" /> Owner</span>}
+                    {member.isCurrentUser && <span className="rounded-full bg-warm-cream px-2 py-0.5 text-[11px] font-bold text-ink-secondary">You</span>}
+                  </div>
+                  <p className="text-xs text-ink-secondary mt-1 truncate">{member.user.email} · {member.relationship}</p>
+                </div>
+
+                {isOwner ? (
+                  <span className="min-w-40 rounded-xl bg-warm-cream border border-warm-sand px-3 py-2 text-sm font-semibold text-ink-secondary">Full ownership</span>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={member.accessRole}
+                      onChange={(event) => void updateMemberRole(member, event.target.value as 'CAREGIVER' | 'FAMILY' | 'VIEWER')}
+                      disabled={!canManageMembers || isBusy}
+                      aria-label={`Permission for ${member.user.name}`}
+                      className="min-w-40 rounded-xl bg-white border border-warm-sand px-3 py-2 text-sm font-semibold disabled:bg-gray-50 disabled:text-gray-500"
+                    >
+                      <option value="CAREGIVER">Caregiver</option>
+                      <option value="FAMILY">Family contributor</option>
+                      <option value="VIEWER">View only</option>
+                    </select>
+                    {canManageMembers && (
+                      <button
+                        onClick={() => void removeMember(member)}
+                        disabled={isBusy}
+                        className="p-2.5 rounded-xl text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        aria-label={`Remove ${member.user.name}`}
+                      >
+                        {isBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-6">
         <form onSubmit={createInvitation} className="bg-white rounded-3xl border border-surface-border p-6 shadow-soft space-y-5">
@@ -131,8 +259,6 @@ export const CaregiverFamilyAccess: React.FC = () => {
               <option value={168}>7 days</option>
             </select>
           </label>
-
-          {error && <p className="rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</p>}
 
           <button
             type="submit"

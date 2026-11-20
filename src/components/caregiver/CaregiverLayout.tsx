@@ -19,7 +19,7 @@ import {
 
 export const CaregiverLayout: React.FC = () => {
   const navigate = useNavigate();
-  const { memories, patientName } = useApp();
+  const { memories, patientName, activePatient } = useApp();
 
   const pendingCount = memories.filter(m => m.status === 'pending' || m.status === 'ai-suggested').length;
 
@@ -33,7 +33,7 @@ export const CaregiverLayout: React.FC = () => {
     { to: '/family/companion', label: 'AI Companion', icon: MessageCircleHeart },
     { to: '/family/routine', label: 'Daily Routine', icon: CalendarCheck },
     { to: '/family/verification', label: 'Verification', icon: ShieldCheck, badge: pendingCount },
-    { to: '/family/access', label: 'Family Access', icon: UserPlus },
+    { to: '/family/access', label: 'Family Access', icon: UserPlus, caregiverOnly: true },
     { to: '/family/settings', label: 'Settings', icon: Settings },
   ];
 
@@ -57,7 +57,7 @@ export const CaregiverLayout: React.FC = () => {
 
           {/* Navigation Links */}
           <nav className="space-y-1">
-            {navItems.map((item) => {
+            {navItems.filter((item) => !item.caregiverOnly || ['OWNER', 'CAREGIVER'].includes(activePatient?.accessRole || '')).map((item) => {
               const Icon = item.icon;
               return (
                 <NavLink

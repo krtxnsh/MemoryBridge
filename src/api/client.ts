@@ -461,6 +461,46 @@ export const invitationApi = {
   }
 };
 
+export interface WorkspaceMember {
+  id: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: 'ADMIN' | 'CAREGIVER' | 'FAMILY_MEMBER';
+    createdAt: string;
+  };
+  relationship: string;
+  accessRole: 'OWNER' | 'CAREGIVER' | 'FAMILY' | 'VIEWER';
+  isCurrentUser: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const accessApi = {
+  async list(patientId: string) {
+    return apiRequest<WorkspaceMember[]>(`/patients/${patientId}/access`);
+  },
+
+  async update(
+    patientId: string,
+    accessId: string,
+    input: { accessRole: 'CAREGIVER' | 'FAMILY' | 'VIEWER'; relationship?: string }
+  ) {
+    return apiRequest<WorkspaceMember>(`/patients/${patientId}/access/${accessId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input)
+    });
+  },
+
+  async remove(patientId: string, accessId: string) {
+    return apiRequest<{ id: string; revoked: boolean }>(
+      `/patients/${patientId}/access/${accessId}`,
+      { method: 'DELETE' }
+    );
+  }
+};
+
 export const memoryApi = {
   async listMemories(patientId: string, page = 1, pageSize = 50) {
     const res = await apiRequest<{ items: any[]; total: number }>(

@@ -16,6 +16,7 @@ describe('Family workspace invitations', () => {
   let patientId: string;
   let invitationId: string;
   let invitationCode: string;
+  let memberAccessId: string;
 
   beforeAll(async () => {
     const owner = await request(app).post('/api/v1/auth/register').send({
@@ -123,6 +124,80 @@ describe('Family workspace invitations', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('INVALID_INVITATION');
+  });
+
+  it('lists workspace members for caregivers without exposing password data', async () => {
+    const response = await request(app)
+      .get(`/api/v1/patients/${patientId}/access`)
+      .set('Authorization', `Bearer ${ownerToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toHaveLength(2);
+    const member = response.body.data.find((item: any) => item.user.email === memberEmail);
+    expect(member.accessRole).toBe('FAMILY');
+    expect(member.user).not.toHaveProperty('passwordHash');
+    memberAccessId = member.id;
+
+    const familyResponse = await request(app)
+      .get(`/api/v1/patients/${patientId}/access`)
+      .set('Authorization', `Bearer ${memberToken}`);
+    expect(familyResponse.status).toBe(404);
+  });
+
+  it('allows only the owner to change a member permission', async () => {
+    const response = await request(app)
+      .patch(`/api/v1/patients/${patientId}/access/${memberAccessId}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ accessRole: 'VIEWER', relationship: 'Daughter' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.accessRole).toBe('VIEWER');
+    expect(response.body.data.relationship).toBe('Daughter');
+
+    const access = await prisma.patientAccess.findUnique({ where: { id: memberAccessId } });
+    expect(access?.accessRole).toBe('VIEWER');
+  });
+
+  it('protects the workspace owner from demotion or removal', async () => {
+    const owner = await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail } });
+    const ownerAccess = await prisma.patientAccess.findUniqueOrThrow({
+      where: { userId_patientId: { userId: owner.id, patientId } }
+    });
+
+    const demote = await request(app)
+      .patch(`/api/v1/patients/${patientId}/access/${ownerAccess.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ accessRole: 'CAREGIVER' });
+    expect(demote.status).toBe(400);
+    expect(demote.body.error.code).toBe('OWNER_ACCESS_PROTECTED');
+
+    const remove = await request(app)
+      .delete(`/api/v1/patients/${patientId}/access/${ownerAccess.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`);
+    expect(remove.status).toBe(400);
+    expect(remove.body.error.code).toBe('OWNER_ACCESS_PROTECTED');
+  });
+
+  it('revokes member access and records access-management audit events', async () => {
+    const response = await request(app)
+      .delete(`/api/v1/patients/${patientId}/access/${memberAccessId}`)
+      .set('Authorization', `Bearer ${ownerToken}`);
+    expect(response.status).toBe(200);
+    expect(response.body.data.revoked).toBe(true);
+
+    const patients = await request(app)
+      .get('/api/v1/patients')
+      .set('Authorization', `Bearer ${memberToken}`);
+    expect(patients.body.data.some((patient: any) => patient.id === patientId)).toBe(false);
+
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        patientId,
+        action: { in: ['UPDATE_PATIENT_ACCESS', 'REVOKE_PATIENT_ACCESS'] }
+      }
+    });
+    expect(logs.some((log) => log.action === 'UPDATE_PATIENT_ACCESS')).toBe(true);
+    expect(logs.some((log) => log.action === 'REVOKE_PATIENT_ACCESS')).toBe(true);
   });
 
   it('records invitation creation and redemption in the patient audit log', async () => {

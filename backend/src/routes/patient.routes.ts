@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AccessRole } from '@prisma/client';
 import { patientController } from '../controllers/patient.controller.js';
+import { accessController } from '../controllers/access.controller.js';
 import { authenticate, requirePatientAccess } from '../middleware/auth.js';
 import { validateUuidParams } from '../validators/common.validator.js';
 
@@ -47,6 +48,31 @@ router.delete(
   (req, res, next) => {
     patientController.deletePatient(req, res, next);
   }
+);
+
+// Family workspace membership
+router.get(
+  '/patients/:patientId/access',
+  validateUuidParams('patientId'),
+  authenticate,
+  requirePatientAccess(AccessRole.CAREGIVER),
+  (req, res, next) => accessController.list(req, res, next)
+);
+
+router.patch(
+  '/patients/:patientId/access/:accessId',
+  validateUuidParams('patientId', 'accessId'),
+  authenticate,
+  requirePatientAccess(AccessRole.OWNER),
+  (req, res, next) => accessController.update(req, res, next)
+);
+
+router.delete(
+  '/patients/:patientId/access/:accessId',
+  validateUuidParams('patientId', 'accessId'),
+  authenticate,
+  requirePatientAccess(AccessRole.OWNER),
+  (req, res, next) => accessController.remove(req, res, next)
 );
 
 // Patient Session Management (token issuance & revocation)
