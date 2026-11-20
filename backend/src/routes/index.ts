@@ -13,6 +13,7 @@ import dashboardRoutes from './dashboard.routes.js';
 import companionRoutes from './companion.routes.js';
 import mediaRoutes from './media.routes.js';
 import localStorageRoutes from './local-storage.routes.js';
+import invitationRoutes from './invitation.routes.js';
 import { generalApiRateLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -28,6 +29,9 @@ router.use('/auth', authRoutes);
 
 // Patient & Session Endpoints: /api/v1/patients/* & /api/v1/patient-sessions/*
 router.use(patientRoutes);
+
+// Family workspace invitation endpoints
+router.use(invitationRoutes);
 
 // Memory Endpoints: /api/v1/memories/* & /api/v1/patients/:patientId/memories/*
 router.use(memoryRoutes);

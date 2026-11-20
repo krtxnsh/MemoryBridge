@@ -13,7 +13,8 @@ import {
   ShieldCheck, 
   Settings,
   ExternalLink,
-  HeartHandshake
+  HeartHandshake,
+  UserPlus
 } from 'lucide-react';
 
 export const CaregiverLayout: React.FC = () => {
@@ -32,6 +33,7 @@ export const CaregiverLayout: React.FC = () => {
     { to: '/family/companion', label: 'AI Companion', icon: MessageCircleHeart },
     { to: '/family/routine', label: 'Daily Routine', icon: CalendarCheck },
     { to: '/family/verification', label: 'Verification', icon: ShieldCheck, badge: pendingCount },
+    { to: '/family/access', label: 'Family Access', icon: UserPlus },
     { to: '/family/settings', label: 'Settings', icon: Settings },
   ];
 

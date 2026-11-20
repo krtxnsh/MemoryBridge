@@ -391,6 +391,53 @@ export const patientApi = {
   }
 };
 
+export interface PatientInvitation {
+  id: string;
+  accessRole: 'FAMILY' | 'VIEWER';
+  relationship: string;
+  expiresAt: string;
+  redeemedAt: string | null;
+  redeemedBy: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  status: 'ACTIVE' | 'REDEEMED' | 'REVOKED' | 'EXPIRED';
+}
+
+export const invitationApi = {
+  async create(
+    patientId: string,
+    input: { accessRole: 'FAMILY' | 'VIEWER'; relationship: string; expiresInHours: number }
+  ) {
+    return apiRequest<PatientInvitation & { code: string; patientId: string }>(
+      `/patients/${patientId}/invitations`,
+      { method: 'POST', body: JSON.stringify(input) }
+    );
+  },
+
+  async list(patientId: string) {
+    return apiRequest<PatientInvitation[]>(`/patients/${patientId}/invitations`);
+  },
+
+  async revoke(patientId: string, invitationId: string) {
+    return apiRequest<{ id: string; revokedAt: string }>(
+      `/patients/${patientId}/invitations/${invitationId}`,
+      { method: 'DELETE' }
+    );
+  },
+
+  async redeem(code: string) {
+    return apiRequest<{
+      patient: { id: string; fullName: string; profileImage?: string | null };
+      accessRole: 'FAMILY' | 'VIEWER';
+      relationship: string;
+      redeemedAt: string;
+    }>('/invitations/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ code })
+    });
+  }
+};
+
 export const memoryApi = {
   async listMemories(patientId: string, page = 1, pageSize = 50) {
     const res = await apiRequest<{ items: any[]; total: number }>(

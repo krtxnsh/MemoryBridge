@@ -123,3 +123,41 @@ MemoryBridge backend adheres strictly to the `{ data, error }` response envelope
 - `PATCH /api/v1/media/:id` — Update media caption (auto-reverts verified memory unless `reverify: true`).
 - `DELETE /api/v1/media/:id` — Soft-delete media row and delete physical object in storage.
 
+# Family Workspace Invitations
+
+Invitation codes are returned only once at creation and stored as SHA-256 hashes. They expire after 1–168 hours and can be redeemed by one authenticated user.
+
+## `POST /api/v1/patients/:patientId/invitations`
+
+Requires `CAREGIVER` or `OWNER` patient access.
+
+```json
+{
+  "relationship": "Daughter",
+  "accessRole": "FAMILY",
+  "expiresInHours": 72
+}
+```
+
+`accessRole` may be `FAMILY` or `VIEWER`. The response contains the one-time `code`.
+
+## `GET /api/v1/patients/:patientId/invitations`
+
+Lists invitation metadata without codes or hashes.
+
+## `DELETE /api/v1/patients/:patientId/invitations/:invitationId`
+
+Revokes an unredeemed invitation.
+
+## `POST /api/v1/invitations/redeem`
+
+Requires an authenticated user.
+
+```json
+{
+  "code": "ABCDE-23456"
+}
+```
+
+Successful redemption creates a `PatientAccess` membership and records an audit event. Reused, revoked and expired codes return the same safe invalid-invitation response.
+

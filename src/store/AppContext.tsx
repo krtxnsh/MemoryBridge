@@ -308,8 +308,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const refreshData = async () => {
-    if (activePatientId) {
-      await loadPatientDomainData(activePatientId);
+    const patients = await patientApi.listPatients();
+    setPatientsList(patients);
+    const target = patients.find(patient => patient.id === activePatientId) || patients[0];
+    if (target) {
+      setActivePatientIdState(target.id);
+      setActivePatientId(target.id);
+      setActivePatient(target);
+      await loadPatientDomainData(target.id);
     }
   };
 

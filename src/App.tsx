@@ -4,6 +4,7 @@ import { AppProvider } from './store/AppContext';
 import { HeaderBar } from './components/common/HeaderBar';
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then(module => ({ default: module.LandingPage })));
+const JoinFamily = lazy(() => import('./pages/JoinFamily').then(module => ({ default: module.JoinFamily })));
 const PatientLayout = lazy(() => import('./components/patient/PatientLayout').then(module => ({ default: module.PatientLayout })));
 const PatientHome = lazy(() => import('./pages/patient/PatientHome').then(module => ({ default: module.PatientHome })));
 const PatientMemories = lazy(() => import('./pages/patient/PatientMemories').then(module => ({ default: module.PatientMemories })));
@@ -25,6 +26,7 @@ const CaregiverConnections = lazy(() => import('./pages/caregiver/CaregiverConne
 const CaregiverRoutine = lazy(() => import('./pages/caregiver/CaregiverRoutine').then(module => ({ default: module.CaregiverRoutine })));
 const CaregiverVerification = lazy(() => import('./pages/caregiver/CaregiverVerification').then(module => ({ default: module.CaregiverVerification })));
 const CaregiverSettings = lazy(() => import('./pages/caregiver/CaregiverSettings').then(module => ({ default: module.CaregiverSettings })));
+const CaregiverFamilyAccess = lazy(() => import('./pages/caregiver/CaregiverFamilyAccess').then(module => ({ default: module.CaregiverFamilyAccess })));
 
 export const App: React.FC = () => {
   return (
@@ -39,6 +41,7 @@ export const App: React.FC = () => {
             <Routes>
             {/* Landing Page */}
             <Route path="/" element={<LandingPage />} />
+            <Route path="/join" element={<JoinFamily />} />
 
             {/* Patient Companion Experience (/patient/*) */}
             <Route path="/patient" element={<PatientLayout />}>
@@ -67,6 +70,7 @@ export const App: React.FC = () => {
               <Route path="routine" element={<CaregiverRoutine />} />
               <Route path="verification" element={<CaregiverVerification />} />
               <Route path="settings" element={<CaregiverSettings />} />
+              <Route path="access" element={<CaregiverFamilyAccess />} />
             </Route>
 
             {/* Fallback to Home */}
