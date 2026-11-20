@@ -1,11 +1,17 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../store/AppContext';
-import { Volume2, VolumeX, Type, Music, ShieldCheck, HeartHandshake, Home } from 'lucide-react';
+import { Volume2, VolumeX, Type, Music, ShieldCheck, HeartHandshake, Home, LogIn, LogOut, User } from 'lucide-react';
+import { LoginModal } from './LoginModal';
 
 export const HeaderBar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const { 
+    currentUser,
+    isLoggedIn,
+    logout,
     textSize, 
     setTextSize, 
     voiceEnabled, 
@@ -72,8 +78,9 @@ export const HeaderBar: React.FC = () => {
               <span>👵</span>
               <span>Patient App</span>
             </Link>
-            <Link
-              to="/family"
+            <button
+              type="button"
+              onClick={() => isLoggedIn ? navigate('/family') : setShowLoginModal(true)}
               className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center gap-1.5 ${
                 isCaregiverApp 
                   ? 'bg-ink-primary text-white shadow-soft font-semibold' 
@@ -82,7 +89,7 @@ export const HeaderBar: React.FC = () => {
             >
               <ShieldCheck className="w-3.5 h-3.5 text-primary-300" />
               <span>Caregiver</span>
-            </Link>
+            </button>
           </nav>
 
           {/* Accessibility & Audio Controls */}
@@ -126,9 +133,47 @@ export const HeaderBar: React.FC = () => {
             >
               {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </button>
+
+            {/* Auth / Caregiver Profile Button */}
+            {isLoggedIn && currentUser ? (
+              <div className="flex items-center gap-1.5 pl-1.5 border-l border-surface-border">
+                <div 
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-warm-cream border border-surface-border text-xs text-ink-primary font-medium"
+                  title={`Logged in as ${currentUser.email} (${currentUser.role})`}
+                >
+                  <User className="w-3.5 h-3.5 text-primary" />
+                  <span className="truncate max-w-[100px]">{currentUser.name.split(' ')[0]}</span>
+                </div>
+                <button
+                  onClick={() => logout()}
+                  className="p-2 rounded-xl bg-warm-cream hover:bg-red-50 text-ink-secondary hover:text-red-600 transition-colors border border-surface-border"
+                  title="Sign Out"
+                  aria-label="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="pl-1.5 border-l border-surface-border">
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover shadow-soft transition-all"
+                  title="Sign In as Caregiver / Family"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Sign In</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
+
+      {/* Caregiver & Family Login Modal */}
+      <LoginModal 
+        isOpen={showLoginModal} 
+        onClose={() => setShowLoginModal(false)} 
+      />
 
       {/* Persistent Toast Feedback Banner */}
       {toast && (

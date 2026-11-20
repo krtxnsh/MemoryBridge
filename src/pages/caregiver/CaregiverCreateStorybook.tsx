@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../store/AppContext';
 import { storyService, mediaService, voiceService } from '../../services';
+import { mediaApi } from '../../api/client';
 import { MascotMira } from '../../components/common/MascotMira';
 import { 
   ArrowLeft, 
@@ -13,15 +14,14 @@ import {
   ShieldCheck, 
   AlertCircle, 
   Trash2, 
-  Sparkles,
-  Image as ImageIcon
+  Loader2
 } from 'lucide-react';
 import { MemoryMedia } from '../../types';
 import { createSvgPhoto } from '../../assets/placeholders';
 
 export const CaregiverCreateStorybook: React.FC = () => {
   const navigate = useNavigate();
-  const { addMemory, people, albums, patientName } = useApp();
+  const { addMemory, people, albums, patientName, activePatientId, showToast } = useApp();
 
   const [currentStep, setCurrentStep] = useState<number>(1);
 
@@ -31,6 +31,8 @@ export const CaregiverCreateStorybook: React.FC = () => {
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([
     createSvgPhoto('family', 'Uploaded Memory Photograph', 'New')
   ]);
+  const [rawFiles, setRawFiles] = useState<File[]>([]);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [title, setTitle] = useState<string>('Afternoon in the Courtyard');
   const [year, setYear] = useState<number>(1995);
   const [location, setLocation] = useState<string>('Family Courtyard, Delhi');
@@ -59,10 +61,12 @@ export const CaregiverCreateStorybook: React.FC = () => {
   // Step 2: File upload handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      const selectedList: File[] = Array.from(e.target.files);
+      setRawFiles(prev => [...prev, ...selectedList]);
       const newUrls: string[] = [];
-      for (let i = 0; i < e.target.files.length; i++) {
+      for (const file of selectedList) {
         try {
-          const dataUrl = await mediaService.readFileAsDataUrl(e.target.files[i]);
+          const dataUrl = await mediaService.readFileAsDataUrl(file);
           newUrls.push(dataUrl);
         } catch {
           // fallback
@@ -74,6 +78,7 @@ export const CaregiverCreateStorybook: React.FC = () => {
 
   const handleRemovePhoto = (idx: number) => {
     setUploadedPhotos(prev => prev.filter((_, i) => i !== idx));
+    setRawFiles(prev => prev.filter((_, i) => i !== idx));
   };
 
   // Move from Step 3 to Step 4: Generate story draft
@@ -95,31 +100,55 @@ export const CaregiverCreateStorybook: React.FC = () => {
   };
 
   // Step 4: Save & Commit to Memory Store
-  const handleFinalSave = () => {
-    const mediaItems: MemoryMedia[] = uploadedPhotos.map((url, i) => ({
-      id: `med-${Date.now()}-${i}`,
-      url,
-      type: 'image',
-      caption: title
-    }));
+  const handleFinalSave = async () => {
+    setIsSaving(true);
+    try {
+      const mediaItems: MemoryMedia[] = uploadedPhotos.map((url, i) => ({
+        id: `med-${Date.now()}-${i}`,
+        url,
+        type: 'image',
+        caption: title
+      }));
 
-    addMemory({
-      title,
-      year,
-      dateStr: `${year}`,
-      location,
-      albumId: selectedAlbumId,
-      peopleIds: selectedPeopleIds,
-      media: mediaItems,
-      story: generatedStory,
-      status: autoApprove ? 'verified' : 'pending',
-      source: 'caregiver',
-      approvedBy: autoApprove ? 'Anita (Family Caregiver)' : undefined,
-      era: year < 1970 ? 'Childhood' : year < 1980 ? 'College' : year < 1990 ? 'Career' : 'Wedding & Family',
-      tags: [location.split(',')[0], 'Family', `${year}`]
-    });
+      const createdMemoryId = await addMemory({
+        title,
+        year,
+        dateStr: `${year}`,
+        location,
+        albumId: selectedAlbumId,
+        peopleIds: selectedPeopleIds,
+        media: mediaItems,
+        story: generatedStory,
+        status: autoApprove ? 'verified' : 'pending',
+        source: 'caregiver',
+        approvedBy: autoApprove ? 'Anita (Family Caregiver)' : undefined,
+        era: year < 1970 ? 'Childhood' : year < 1980 ? 'College' : year < 1990 ? 'Career' : 'Wedding & Family',
+        tags: [location.split(',')[0], 'Family', `${year}`]
+      });
 
-    navigate('/family/library');
+      // Upload raw files through Phase 6 private media storage pipeline
+      if (rawFiles.length > 0 && activePatientId) {
+        showToast(`Uploading ${rawFiles.length} photo(s) securely to storage...`, 'info');
+        for (const file of rawFiles) {
+          try {
+            await mediaApi.uploadFile(activePatientId, file, {
+              memoryId: createdMemoryId,
+              purpose: 'MEMORY_MEDIA',
+              caption: title
+            });
+          } catch (uploadErr: any) {
+            console.warn('Phase 6 upload error for file:', file.name, uploadErr);
+          }
+        }
+        showToast('Media upload and verification completed!', 'success');
+      }
+
+      navigate('/family/library');
+    } catch (err: any) {
+      showToast(`Error saving storybook: ${err.message}`, 'amber');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -490,10 +519,11 @@ export const CaregiverCreateStorybook: React.FC = () => {
               </button>
               <button
                 onClick={handleFinalSave}
-                className="inline-flex items-center gap-2 px-7 py-3 rounded-2xl bg-primary hover:bg-primary-hover text-white font-bold text-sm shadow-soft hover:scale-105 active:scale-95 transition-transform"
+                disabled={isSaving}
+                className="inline-flex items-center gap-2 px-7 py-3 rounded-2xl bg-primary hover:bg-primary-hover text-white font-bold text-sm shadow-soft hover:scale-105 active:scale-95 transition-transform disabled:opacity-50"
               >
-                <Check className="w-4 h-4" />
-                <span>Save to Memory Library</span>
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                <span>{isSaving ? 'Saving & Uploading...' : 'Save to Memory Library'}</span>
               </button>
             </div>
           </div>

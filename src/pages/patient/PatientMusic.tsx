@@ -7,25 +7,18 @@ import {
   Play, 
   Pause, 
   Disc, 
-  BookOpen, 
   Volume2, 
   SkipForward, 
-  SkipBack, 
-  Heart
+  SkipBack
 } from 'lucide-react';
 
 export const PatientMusic: React.FC = () => {
   const navigate = useNavigate();
   const { songs, memories, activeSong, isPlayingMusic, playSong, pauseSong } = useApp();
   
-  const [currentSong, setCurrentSong] = useState<Song>(activeSong || songs[0]);
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [progress, setProgress] = useState<number>(35);
-
-  useEffect(() => {
-    if (activeSong) {
-      setCurrentSong(activeSong);
-    }
-  }, [activeSong]);
+  const currentSong = selectedSong || activeSong || songs[0];
 
   // Gentle progress bar simulation if music is playing
   useEffect(() => {
@@ -44,7 +37,7 @@ export const PatientMusic: React.FC = () => {
     if (currentSong?.id === song.id && isPlayingMusic) {
       pauseSong();
     } else {
-      setCurrentSong(song);
+      setSelectedSong(song);
       playSong(song);
     }
   };
@@ -52,14 +45,14 @@ export const PatientMusic: React.FC = () => {
   const handleNext = () => {
     const idx = songs.findIndex(s => s.id === currentSong.id);
     const nextSong = songs[(idx + 1) % songs.length];
-    setCurrentSong(nextSong);
+    setSelectedSong(nextSong);
     if (isPlayingMusic) playSong(nextSong);
   };
 
   const handlePrev = () => {
     const idx = songs.findIndex(s => s.id === currentSong.id);
     const prevSong = songs[(idx - 1 + songs.length) % songs.length];
-    setCurrentSong(prevSong);
+    setSelectedSong(prevSong);
     if (isPlayingMusic) playSong(prevSong);
   };
 

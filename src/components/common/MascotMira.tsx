@@ -53,29 +53,29 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
         <defs>
           {/* Gradients for warm 3D soft clay look */}
           <radialGradient id="skinGrad" cx="45%" cy="40%" r="55%">
-            <stop offset="0%" stop-color="#FFF0E5" />
-            <stop offset="65%" stop-color="#FED7C3" />
-            <stop offset="100%" stop-color="#F5B799" />
+            <stop offset="0%" stopColor="#FFF0E5" />
+            <stop offset="65%" stopColor="#FED7C3" />
+            <stop offset="100%" stopColor="#F5B799" />
           </radialGradient>
 
           <linearGradient id="hairGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#5D4037" />
-            <stop offset="100%" stop-color="#3E2723" />
+            <stop offset="0%" stopColor="#5D4037" />
+            <stop offset="100%" stopColor="#3E2723" />
           </linearGradient>
 
           <linearGradient id="dressGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#80CBC4" />
-            <stop offset="100%" stop-color="#4DB6AC" />
+            <stop offset="0%" stopColor="#80CBC4" />
+            <stop offset="100%" stopColor="#4DB6AC" />
           </linearGradient>
 
           <linearGradient id="pajamaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#E1F5FE" />
-            <stop offset="100%" stop-color="#B3E5FC" />
+            <stop offset="0%" stopColor="#E1F5FE" />
+            <stop offset="100%" stopColor="#B3E5FC" />
           </linearGradient>
 
           <linearGradient id="bookGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#D95424" />
-            <stop offset="100%" stop-color="#F36B32" />
+            <stop offset="0%" stopColor="#D95424" />
+            <stop offset="100%" stopColor="#F36B32" />
           </linearGradient>
         </defs>
 
@@ -86,10 +86,10 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
         {state === 'listening' && (
           <g className="animate-pulse">
             {/* Soft sound waves */}
-            <circle cx="100" cy="85" r="75" stroke="#F36B32" stroke-width="2" stroke-dasharray="6 6" opacity="0.35" />
-            <circle cx="100" cy="85" r="90" stroke="#F36B32" stroke-width="1.5" opacity="0.2" />
+            <circle cx="100" cy="85" r="75" stroke="#F36B32" strokeWidth="2" strokeDasharray="6 6" opacity="0.35" />
+            <circle cx="100" cy="85" r="90" stroke="#F36B32" strokeWidth="1.5" opacity="0.2" />
             {/* Headphones band */}
-            <path d="M52 82 C52 46, 148 46, 148 82" stroke="#5D4037" stroke-width="6" fill="none" stroke-linecap="round" />
+            <path d="M52 82 C52 46, 148 46, 148 82" stroke="#5D4037" strokeWidth="6" fill="none" strokeLinecap="round" />
             {/* Ear pads */}
             <rect x="44" y="70" width="14" height="26" rx="7" fill="#F36B32" />
             <rect x="142" y="70" width="14" height="26" rx="7" fill="#F36B32" />
@@ -124,7 +124,7 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
           <g>
             <path d="M72 136 C72 128, 128 128, 128 136 L138 195 C138 200, 62 200, 62 195 Z" fill="url(#dressGrad)" />
             {/* Apricot inner shirt collar */}
-            <path d="M85 130 Q100 144, 115 130" stroke="#FFFDF9" stroke-width="4" fill="none" stroke-linecap="round" />
+            <path d="M85 130 Q100 144, 115 130" stroke="#FFFDF9" strokeWidth="4" fill="none" strokeLinecap="round" />
             {/* Cute pocket */}
             <path d="M92 165 C92 162, 108 162, 108 165 L106 177 C106 180, 94 180, 94 177 Z" fill="#3B9E94" opacity="0.5" />
           </g>
@@ -140,8 +140,8 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
         {/* Front Hair Bangs and Hair Bow */}
         <path d="M66 84 C70 60, 130 60, 134 84 C120 72, 80 72, 66 84 Z" fill="url(#hairGrad)" />
         {/* Hair side strands */}
-        <path d="M64 82 C60 100, 62 114, 68 118" stroke="url(#hairGrad)" stroke-width="7" stroke-linecap="round" fill="none" />
-        <path d="M136 82 C140 100, 138 114, 132 118" stroke="url(#hairGrad)" stroke-width="7" stroke-linecap="round" fill="none" />
+        <path d="M64 82 C60 100, 62 114, 68 118" stroke="url(#hairGrad)" strokeWidth="7" strokeLinecap="round" fill="none" />
+        <path d="M136 82 C140 100, 138 114, 132 118" stroke="url(#hairGrad)" strokeWidth="7" strokeLinecap="round" fill="none" />
 
         {/* Hair Bow (light sky blue) */}
         {state !== 'sleepy' && (
@@ -169,13 +169,13 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
         {/* EYES AND EXPRESSIONS BASED ON STATE */}
         {state === 'sleepy' ? (
           // Sleeping happy eyes
-          <g stroke="#3E2723" stroke-width="2.5" stroke-linecap="round" fill="none">
+          <g stroke="#3E2723" strokeWidth="2.5" strokeLinecap="round" fill="none">
             <path d="M80 92 Q86 98, 92 92" />
             <path d="M108 92 Q114 98, 120 92" />
           </g>
         ) : state === 'celebrating' ? (
           // Joyful arched eyes
-          <g stroke="#3E2723" stroke-width="2.5" stroke-linecap="round" fill="none">
+          <g stroke="#3E2723" strokeWidth="2.5" strokeLinecap="round" fill="none">
             <path d="M80 94 Q86 87, 92 94" />
             <path d="M108 94 Q114 87, 120 94" />
           </g>
@@ -199,12 +199,12 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
 
         {/* Eyebrows */}
         {state === 'thinking' ? (
-          <g stroke="#5D4037" stroke-width="1.8" stroke-linecap="round" fill="none">
+          <g stroke="#5D4037" strokeWidth="1.8" strokeLinecap="round" fill="none">
             <path d="M80 82 Q86 78, 92 82" />
             <path d="M108 81 Q114 76, 120 83" />
           </g>
         ) : (
-          <g stroke="#5D4037" stroke-width="1.8" stroke-linecap="round" fill="none">
+          <g stroke="#5D4037" strokeWidth="1.8" strokeLinecap="round" fill="none">
             <path d="M80 84 Q86 81, 92 84" />
             <path d="M108 84 Q114 81, 120 84" />
           </g>
@@ -217,9 +217,9 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
         {state === 'speaking' ? (
           <path d="M94 103 Q100 114, 106 103 Z" fill="#D32F2F" />
         ) : state === 'celebrating' || state === 'waving' ? (
-          <path d="M94 103 Q100 112, 106 103" stroke="#D32F2F" stroke-width="2.5" stroke-linecap="round" fill="none" />
+          <path d="M94 103 Q100 112, 106 103" stroke="#D32F2F" strokeWidth="2.5" strokeLinecap="round" fill="none" />
         ) : (
-          <path d="M96 104 Q100 109, 104 104" stroke="#D32F2F" stroke-width="2" stroke-linecap="round" fill="none" />
+          <path d="M96 104 Q100 109, 104 104" stroke="#D32F2F" strokeWidth="2" strokeLinecap="round" fill="none" />
         )}
 
         {/* ================= FOREGROUND ARMS & PROPS ================= */}
@@ -237,8 +237,8 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
             <ellipse cx="20" cy="11" rx="6" ry="4" fill="#D7CCC8" />
             <circle cx="20" cy="10" r="2" fill="#4E342E" />
             {/* Mira arms hugging */}
-            <path d="M-15 15 C-5 25, 10 25, 20 25" stroke="#FED7C3" stroke-width="7" stroke-linecap="round" fill="none" />
-            <path d="M45 15 C35 25, 25 25, 15 25" stroke="#FED7C3" stroke-width="7" stroke-linecap="round" fill="none" />
+            <path d="M-15 15 C-5 25, 10 25, 20 25" stroke="#FED7C3" strokeWidth="7" strokeLinecap="round" fill="none" />
+            <path d="M45 15 C35 25, 25 25, 15 25" stroke="#FED7C3" strokeWidth="7" strokeLinecap="round" fill="none" />
           </g>
         )}
 
@@ -246,17 +246,17 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
           // Holding open Storybook
           <g transform="translate(64, 150)">
             {/* Book left page */}
-            <path d="M36 10 L4 0 L4 35 L36 45 Z" fill="#FFFDF9" stroke="#E9E3DC" stroke-width="1.5" />
+            <path d="M36 10 L4 0 L4 35 L36 45 Z" fill="#FFFDF9" stroke="#E9E3DC" strokeWidth="1.5" />
             {/* Book right page */}
-            <path d="M36 10 L68 0 L68 35 L36 45 Z" fill="#FFFDF9" stroke="#E9E3DC" stroke-width="1.5" />
+            <path d="M36 10 L68 0 L68 35 L36 45 Z" fill="#FFFDF9" stroke="#E9E3DC" strokeWidth="1.5" />
             {/* Spine */}
-            <line x1="36" y1="10" x2="36" y2="45" stroke="#F36B32" stroke-width="3" />
+            <line x1="36" y1="10" x2="36" y2="45" stroke="#F36B32" strokeWidth="3" />
             {/* Cover trim */}
-            <path d="M2 37 L36 48 L70 37" stroke="url(#bookGrad)" stroke-width="3" fill="none" />
+            <path d="M2 37 L36 48 L70 37" stroke="url(#bookGrad)" strokeWidth="3" fill="none" />
             {/* Faux lines on pages */}
-            <line x1="10" y1="12" x2="30" y2="16" stroke="#D7CCC8" stroke-width="1.5" />
-            <line x1="10" y1="20" x2="30" y2="24" stroke="#D7CCC8" stroke-width="1.5" />
-            <line x1="42" y1="16" x2="62" y2="12" stroke="#D7CCC8" stroke-width="1.5" />
+            <line x1="10" y1="12" x2="30" y2="16" stroke="#D7CCC8" strokeWidth="1.5" />
+            <line x1="10" y1="20" x2="30" y2="24" stroke="#D7CCC8" strokeWidth="1.5" />
+            <line x1="42" y1="16" x2="62" y2="12" stroke="#D7CCC8" strokeWidth="1.5" />
             {/* Hands holding book */}
             <circle cx="6" cy="22" r="5" fill="#FED7C3" />
             <circle cx="66" cy="22" r="5" fill="#FED7C3" />
@@ -265,7 +265,7 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
 
         {state === 'celebrating' && (
           // Both arms high in the air
-          <g stroke="#FED7C3" stroke-width="7" stroke-linecap="round" fill="none">
+          <g stroke="#FED7C3" strokeWidth="7" strokeLinecap="round" fill="none">
             <path d="M72 136 Q55 105, 42 80" />
             <path d="M128 136 Q145 105, 158 80" />
             <circle cx="42" cy="78" r="5" fill="#FED7C3" stroke="none" />
@@ -274,7 +274,7 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
         )}
 
         {state === 'waving' && (
-          <g stroke="#FED7C3" stroke-width="7" stroke-linecap="round" fill="none">
+          <g stroke="#FED7C3" strokeWidth="7" strokeLinecap="round" fill="none">
             {/* Left resting arm */}
             <path d="M72 136 Q60 155, 68 170" />
             {/* Right waving arm */}
@@ -284,7 +284,7 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
         )}
 
         {state === 'thinking' && (
-          <g stroke="#FED7C3" stroke-width="7" stroke-linecap="round" fill="none">
+          <g stroke="#FED7C3" strokeWidth="7" strokeLinecap="round" fill="none">
             <path d="M72 136 Q60 155, 68 170" />
             {/* Hand to cheek */}
             <path d="M128 136 Q135 125, 124 106" />
@@ -297,7 +297,7 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
 
         {state === 'idle' && (
           // Calm resting arms
-          <g stroke="#FED7C3" stroke-width="7" stroke-linecap="round" fill="none">
+          <g stroke="#FED7C3" strokeWidth="7" strokeLinecap="round" fill="none">
             <path d="M72 136 Q60 158, 70 172" />
             <path d="M128 136 Q140 158, 130 172" />
             <circle cx="70" cy="172" r="4.5" fill="#FED7C3" stroke="none" />
@@ -307,7 +307,7 @@ export const MascotMira: React.FC<MascotMiraProps> = ({
 
         {state === 'speaking' && (
           // Expressive communicative hands
-          <g stroke="#FED7C3" stroke-width="7" stroke-linecap="round" fill="none">
+          <g stroke="#FED7C3" strokeWidth="7" strokeLinecap="round" fill="none">
             <path d="M72 136 Q60 150, 78 158" />
             <path d="M128 136 Q145 145, 132 152" />
             <circle cx="78" cy="158" r="4.5" fill="#FED7C3" stroke="none" />

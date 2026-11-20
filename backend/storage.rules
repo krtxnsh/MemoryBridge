@@ -1,0 +1,11 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // All media is private: client read and write directly through Firebase client SDK is disabled.
+    // Access is granted exclusively through server-generated V4 signed URLs.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
