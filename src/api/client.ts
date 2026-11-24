@@ -10,6 +10,7 @@ import {
   Person,
   Memory,
   Album,
+  Storybook,
   RoutineItem,
   DiaryEntry,
   VerificationStatus,
@@ -273,6 +274,22 @@ export function toFrontendAlbum(b: any): Album {
     yearRange: b.yearRange || '',
     description: b.description || '',
     memoryCount: b.memoryCount ?? (b._count?.memories || 0)
+  };
+}
+
+export function toFrontendStorybook(b: any): Storybook {
+  const memories = Array.isArray(b.memories) ? b.memories : [];
+  return {
+    id: b.id,
+    title: b.title || 'Untitled Storybook',
+    description: b.description || '',
+    coverUrl: b.coverImage || '/placeholders/album-cover.svg',
+    status: (b.status || '').toUpperCase() === 'PUBLISHED' ? 'published' : 'draft',
+    generatedStory: b.generatedStory || '',
+    memoryCount: b.memoryCount ?? memories.length,
+    memoryIds: memories
+      .map((m: any) => m.memory?.id || m.memoryId || m.id)
+      .filter(Boolean)
   };
 }
 
@@ -647,6 +664,49 @@ export const albumApi = {
       body: JSON.stringify(payload)
     });
     return toFrontendAlbum(res);
+  }
+};
+
+export const storybookApi = {
+  async listStorybooks(patientId: string) {
+    const res = await apiRequest<{ items: any[]; total: number }>(
+      `/patients/${patientId}/storybooks`
+    );
+    return (res.items || []).map(toFrontendStorybook);
+  },
+
+  async getStorybook(id: string) {
+    const res = await apiRequest<any>(`/storybooks/${id}`);
+    return toFrontendStorybook(res);
+  },
+
+  async createStorybook(
+    patientId: string,
+    input: { title: string; description?: string; memoryIds?: string[]; status?: 'draft' | 'published' }
+  ) {
+    const payload = {
+      title: input.title,
+      description: input.description,
+      status: (input.status || 'published').toUpperCase(),
+      memoryIds: input.memoryIds || []
+    };
+    const res = await apiRequest<any>(`/patients/${patientId}/storybooks`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return toFrontendStorybook(res);
+  },
+
+  async setMemories(id: string, memoryIds: string[]) {
+    const res = await apiRequest<any>(`/storybooks/${id}/memories`, {
+      method: 'POST',
+      body: JSON.stringify({ memoryIds })
+    });
+    return toFrontendStorybook(res);
+  },
+
+  async deleteStorybook(id: string) {
+    return apiRequest<{ id: string }>(`/storybooks/${id}`, { method: 'DELETE' });
   }
 };
 

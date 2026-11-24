@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { Person, Memory, Album, RoutineItem, Song, DiaryEntry } from '../types';
+import { Person, Memory, Album, Storybook, RoutineItem, Song, DiaryEntry } from '../types';
 import {
   INITIAL_PEOPLE,
   INITIAL_MEMORIES,
@@ -14,6 +14,7 @@ import {
   memoryApi,
   personApi,
   albumApi,
+  storybookApi,
   routineApi,
   diaryApi,
   getAccessToken,
@@ -69,6 +70,7 @@ interface AppContextType {
   people: Person[];
   memories: Memory[];
   albums: Album[];
+  storybooks: Storybook[];
   routine: RoutineItem[];
   songs: Song[];
   diary: DiaryEntry;
@@ -92,6 +94,8 @@ interface AppContextType {
   deleteMemory: (id: string) => Promise<void>;
   approveMemory: (id: string, approverName?: string) => Promise<void>;
   rejectMemory: (id: string) => Promise<void>;
+  createStorybook: (input: { title: string; description?: string; memoryIds: string[] }) => Promise<void>;
+  deleteStorybook: (id: string) => Promise<void>;
   addPerson: (person: Omit<Person, 'id'>) => Promise<void>;
   updatePerson: (id: string, updates: Partial<Person>) => Promise<void>;
   addRoutineItem: (item: Omit<RoutineItem, 'id'>) => Promise<void>;
@@ -120,6 +124,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [people, setPeople] = useState<Person[]>(INITIAL_PEOPLE);
   const [memories, setMemories] = useState<Memory[]>(INITIAL_MEMORIES);
   const [albums, setAlbums] = useState<Album[]>(INITIAL_ALBUMS);
+  const [storybooks, setStorybooks] = useState<Storybook[]>([]);
   const [routine, setRoutine] = useState<RoutineItem[]>(INITIAL_ROUTINE);
   const [songs] = useState<Song[]>(INITIAL_SONGS);
   const [diary, setDiary] = useState<DiaryEntry>(INITIAL_DIARY);
@@ -168,13 +173,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsLoading(true);
     setDataLoadError(false);
 
-    const [memoriesRes, peopleRes, albumsRes, routineRes, diaryRes] = await Promise.allSettled([
-      memoryApi.listMemories(patId),
-      personApi.listPeople(patId),
-      albumApi.listAlbums(patId),
-      routineApi.listRoutine(patId),
-      diaryApi.getDiary(patId)
-    ]);
+    const [memoriesRes, peopleRes, albumsRes, storybooksRes, routineRes, diaryRes] =
+      await Promise.allSettled([
+        memoryApi.listMemories(patId),
+        personApi.listPeople(patId),
+        albumApi.listAlbums(patId),
+        storybookApi.listStorybooks(patId),
+        routineApi.listRoutine(patId),
+        diaryApi.getDiary(patId)
+      ]);
 
     let anyFailed = false;
 
@@ -185,6 +192,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     else anyFailed = true;
 
     if (albumsRes.status === 'fulfilled') setAlbums(albumsRes.value);
+    else anyFailed = true;
+
+    if (storybooksRes.status === 'fulfilled') setStorybooks(storybooksRes.value);
     else anyFailed = true;
 
     if (routineRes.status === 'fulfilled') setRoutine(routineRes.value);
@@ -331,6 +341,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setMemories(INITIAL_MEMORIES);
       setPeople(INITIAL_PEOPLE);
       setAlbums(INITIAL_ALBUMS);
+      setStorybooks([]);
       setRoutine(INITIAL_ROUTINE);
       setDiary(INITIAL_DIARY);
       showToast('Signed out successfully.', 'info');
@@ -488,6 +499,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (err: any) {
       setMemories(previous); // rollback
       showToast(`Could not decline memory: ${err.message}`, 'amber');
+      throw err;
+    }
+  };
+
+  // Storybook Actions (curated collections of memories, persisted in the DB)
+  const createStorybook = async (input: { title: string; description?: string; memoryIds: string[] }) => {
+    if (!activePatientId) {
+      showToast('Sign in to a patient workspace to save a storybook.', 'amber');
+      throw new Error('No active patient workspace');
+    }
+    try {
+      const created = await storybookApi.createStorybook(activePatientId, {
+        title: input.title,
+        description: input.description,
+        memoryIds: input.memoryIds,
+        status: 'published'
+      });
+      setStorybooks(prev => [created, ...prev]);
+      showToast(`Storybook "${created.title}" created.`, 'success');
+    } catch (err: any) {
+      showToast(`Could not create storybook: ${err.message}`, 'amber');
+      throw err;
+    }
+  };
+
+  const deleteStorybook = async (id: string) => {
+    const previous = storybooks;
+    setStorybooks(prev => prev.filter(s => s.id !== id));
+    try {
+      await storybookApi.deleteStorybook(id);
+      showToast('Storybook removed.', 'info');
+    } catch (err: any) {
+      setStorybooks(previous); // rollback
+      showToast(`Could not remove storybook: ${err.message}`, 'amber');
       throw err;
     }
   };
@@ -658,6 +703,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         people,
         memories,
         albums,
+        storybooks,
         routine,
         songs,
         diary,
@@ -681,6 +727,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         deleteMemory,
         approveMemory,
         rejectMemory,
+        createStorybook,
+        deleteStorybook,
         addPerson,
         updatePerson,
         addRoutineItem,

@@ -50,6 +50,19 @@ export interface Album {
   memoryCount: number;
 }
 
+export interface Storybook {
+  id: string;
+  title: string;
+  description: string;
+  coverUrl: string;
+  status: 'draft' | 'published';
+  generatedStory: string;
+  memoryCount: number;
+  // Ordered memory ids as curated by the caregiver. For patient/viewer/family
+  // sessions the backend returns ONLY the verified memories in the storybook.
+  memoryIds: string[];
+}
+
 export interface RoutineItem {
   id: string;
   title: string;
