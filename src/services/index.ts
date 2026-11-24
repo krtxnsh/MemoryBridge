@@ -270,43 +270,97 @@ export const voiceService: IVoiceService = {
 
   startListening(onResult: (text: string) => void, onError: (err: string) => void): void {
     if (!this.isSupported()) {
-      onError('Voice recognition is not supported in this browser. Please use the text input below.');
+      onError('Voice input is not available in this browser. You can type your message below instead.');
       return;
+    }
+
+    // Guard against a lingering recognition session (prevents an
+    // "already started" InvalidStateError and a stuck listening state).
+    if (activeRecognition) {
+      try {
+        activeRecognition.onresult = null;
+        activeRecognition.onerror = null;
+        activeRecognition.onend = null;
+        activeRecognition.abort();
+      } catch {
+        // ignore
+      }
+      activeRecognition = null;
     }
 
     try {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      activeRecognition = new SpeechRecognition();
-      activeRecognition.continuous = false;
-      activeRecognition.interimResults = false;
-      activeRecognition.lang = 'en-US';
+      const recognition = new SpeechRecognition();
+      activeRecognition = recognition;
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
 
-      activeRecognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        onResult(transcript);
+      let settled = false; // a result or an error has already been delivered
+
+      recognition.onresult = (event: any) => {
+        settled = true;
+        const transcript = event.results?.[0]?.[0]?.transcript ?? '';
+        if (transcript.trim()) {
+          onResult(transcript);
+        } else {
+          onError("I didn't catch that. Please try again, or type your message below.");
+        }
       };
 
-      activeRecognition.onerror = (event: any) => {
-        onError(event.error || 'Could not hear voice. You can type your question.');
+      recognition.onerror = (event: any) => {
+        settled = true;
+        onError(friendlyVoiceError(event?.error));
       };
 
-      activeRecognition.start();
-    } catch (e: any) {
-      onError('Microphone unavailable. You can easily type your thoughts.');
+      // Always fires when a session ends. If it ended without a result and
+      // without an explicit error (e.g. silence), surface a gentle prompt so
+      // the UI never stays stuck in the "listening" state.
+      recognition.onend = () => {
+        if (activeRecognition === recognition) activeRecognition = null;
+        if (!settled) {
+          onError("I didn't hear anything. Tap the microphone to try again, or type your message.");
+        }
+      };
+
+      recognition.start();
+    } catch {
+      activeRecognition = null;
+      onError('The microphone could not be started. You can type your message below instead.');
     }
   },
 
   stopListening(): void {
     if (activeRecognition) {
       try {
+        activeRecognition.onend = null; // avoid firing the "no speech" prompt on a deliberate stop
         activeRecognition.stop();
-      } catch (e) {
+      } catch {
         // ignore
       }
       activeRecognition = null;
     }
   }
 };
+
+/** Map a SpeechRecognition error code to a calm, dementia-friendly message. */
+function friendlyVoiceError(code?: string): string {
+  switch (code) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return 'Microphone access is blocked. Please allow the microphone in your browser, or type your message below.';
+    case 'audio-capture':
+      return 'No microphone was found. You can type your message below instead.';
+    case 'no-speech':
+      return "I didn't hear anything. Tap the microphone to try again, or type your message.";
+    case 'network':
+      return 'Voice input needs an internet connection right now. You can type your message below.';
+    case 'aborted':
+      return '';
+    default:
+      return 'Voice input had trouble. You can type your message below instead.';
+  }
+}
 
 // ==========================================
 // 6. MEDIA SERVICE
