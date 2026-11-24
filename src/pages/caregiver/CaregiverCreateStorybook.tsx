@@ -21,7 +21,7 @@ import { createSvgPhoto } from '../../assets/placeholders';
 
 export const CaregiverCreateStorybook: React.FC = () => {
   const navigate = useNavigate();
-  const { addMemory, people, albums, patientName, activePatientId, showToast } = useApp();
+  const { addMemory, approveMemory, people, albums, patientName, activePatientId, showToast } = useApp();
 
   const [currentStep, setCurrentStep] = useState<number>(1);
 
@@ -36,10 +36,18 @@ export const CaregiverCreateStorybook: React.FC = () => {
   const [title, setTitle] = useState<string>('Afternoon in the Courtyard');
   const [year, setYear] = useState<number>(1995);
   const [location, setLocation] = useState<string>('Family Courtyard, Delhi');
-  const [selectedPeopleIds, setSelectedPeopleIds] = useState<string[]>(['p-rajiv', 'p-anita']);
-  const [selectedAlbumId, setSelectedAlbumId] = useState<string>('album-trips');
+  const [selectedPeopleIds, setSelectedPeopleIds] = useState<string[]>([]);
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string>('');
   const [generatedStory, setGeneratedStory] = useState<string>('');
   const [autoApprove, setAutoApprove] = useState<boolean>(true);
+
+  // Default the album to the patient's first real album once data has loaded,
+  // instead of a hard-coded demo album id that would not exist for a real patient.
+  React.useEffect(() => {
+    if (!selectedAlbumId && albums.length > 0) {
+      setSelectedAlbumId(albums[0].id);
+    }
+  }, [albums, selectedAlbumId]);
 
   // Step 1: Voice input handler
   const handleToggleVoice = () => {
@@ -103,13 +111,18 @@ export const CaregiverCreateStorybook: React.FC = () => {
   const handleFinalSave = async () => {
     setIsSaving(true);
     try {
-      const mediaItems: MemoryMedia[] = uploadedPhotos.map((url, i) => ({
+      // Only attach real uploaded files as media. Local preview data URLs are
+      // shown while editing but are NOT persisted as memory media — the real
+      // media records come from the Phase 6 upload pipeline below.
+      const mediaItems: MemoryMedia[] = rawFiles.map((_, i) => ({
         id: `med-${Date.now()}-${i}`,
-        url,
+        url: uploadedPhotos[i] || uploadedPhotos[0],
         type: 'image',
         caption: title
       }));
 
+      // A new memory always starts PENDING (enforced by the backend). We never
+      // mark it verified locally; verification is an explicit backend step.
       const createdMemoryId = await addMemory({
         title,
         year,
@@ -119,14 +132,18 @@ export const CaregiverCreateStorybook: React.FC = () => {
         peopleIds: selectedPeopleIds,
         media: mediaItems,
         story: generatedStory,
-        status: autoApprove ? 'verified' : 'pending',
+        status: 'pending',
         source: 'caregiver',
-        approvedBy: autoApprove ? 'Anita (Family Caregiver)' : undefined,
+        approvedBy: undefined,
         era: year < 1970 ? 'Childhood' : year < 1980 ? 'College' : year < 1990 ? 'Career' : 'Wedding & Family',
         tags: [location.split(',')[0], 'Family', `${year}`]
       });
 
-      // Upload raw files through Phase 6 private media storage pipeline
+      // Upload raw files through the Phase 6 private media storage pipeline and
+      // track each file's real outcome. We must NOT report success if any upload
+      // failed.
+      let uploaded = 0;
+      const failedFiles: string[] = [];
       if (rawFiles.length > 0 && activePatientId) {
         showToast(`Uploading ${rawFiles.length} photo(s) securely to storage...`, 'info');
         for (const file of rawFiles) {
@@ -136,16 +153,42 @@ export const CaregiverCreateStorybook: React.FC = () => {
               purpose: 'MEMORY_MEDIA',
               caption: title
             });
+            uploaded += 1;
           } catch (uploadErr: any) {
             console.warn('Phase 6 upload error for file:', file.name, uploadErr);
+            failedFiles.push(file.name);
           }
         }
-        showToast('Media upload and verification completed!', 'success');
+
+        if (failedFiles.length === 0) {
+          showToast(`All ${uploaded} photo(s) uploaded securely.`, 'success');
+        } else if (uploaded === 0) {
+          showToast(
+            `Photo upload failed for all ${failedFiles.length} file(s). The story was saved without photos — please try adding them again.`,
+            'amber'
+          );
+        } else {
+          showToast(
+            `${uploaded} photo(s) uploaded, but ${failedFiles.length} failed (${failedFiles.join(', ')}). Please retry the failed ones.`,
+            'amber'
+          );
+        }
+      }
+
+      // Immediate verification only after the memory actually exists on the
+      // backend, and only via the real verification endpoint.
+      if (autoApprove) {
+        try {
+          await approveMemory(createdMemoryId, 'Anita (Family Caregiver)');
+        } catch {
+          showToast('Memory saved but could not be verified yet. It is in the Verification Queue.', 'amber');
+        }
       }
 
       navigate('/family/library');
     } catch (err: any) {
-      showToast(`Error saving storybook: ${err.message}`, 'amber');
+      // addMemory throws on a backend failure (and has already rolled back).
+      showToast(`Could not save storybook: ${err.message}`, 'amber');
     } finally {
       setIsSaving(false);
     }

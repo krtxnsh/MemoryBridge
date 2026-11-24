@@ -62,6 +62,7 @@ interface AppContextType {
   patientsList: PatientProfileData[];
   selectPatient: (id: string) => Promise<void>;
   isLoading: boolean;
+  dataLoadError: boolean;
   refreshData: () => Promise<void>;
 
   // Domain data
@@ -113,6 +114,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [activePatient, setActivePatient] = useState<PatientProfileData | null>(null);
   const [patientsList, setPatientsList] = useState<PatientProfileData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [dataLoadError, setDataLoadError] = useState<boolean>(false);
 
   // Domain data state
   const [people, setPeople] = useState<Person[]>(INITIAL_PEOPLE);
@@ -155,30 +157,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => window.removeEventListener('memorybridge:auth-expired', handleAuthExpired);
   }, [showToast]);
 
-  // Fetch all domain data for the active patient
+  // Fetch all domain data for the active patient.
+  //
+  // The backend is the single source of truth for a signed-in patient workspace.
+  // We never silently substitute demo/mock data for a failed request, and we
+  // never hide a real (possibly empty) result behind seed content — doing so
+  // would mask backend failures and show memories that are not actually there.
   const loadPatientDomainData = useCallback(async (patId: string) => {
     if (!patId) return;
-    try {
-      setIsLoading(true);
-      const [memoriesRes, peopleRes, albumsRes, routineRes, diaryRes] = await Promise.all([
-        memoryApi.listMemories(patId).catch(() => ({ items: INITIAL_MEMORIES, total: INITIAL_MEMORIES.length })),
-        personApi.listPeople(patId).catch(() => INITIAL_PEOPLE),
-        albumApi.listAlbums(patId).catch(() => INITIAL_ALBUMS),
-        routineApi.listRoutine(patId).catch(() => INITIAL_ROUTINE),
-        diaryApi.getDiary(patId).catch(() => INITIAL_DIARY)
-      ]);
+    setIsLoading(true);
+    setDataLoadError(false);
 
-      if (memoriesRes.items && memoriesRes.items.length > 0) setMemories(memoriesRes.items);
-      if (peopleRes && peopleRes.length > 0) setPeople(peopleRes);
-      if (albumsRes && albumsRes.length > 0) setAlbums(albumsRes);
-      if (routineRes && routineRes.length > 0) setRoutine(routineRes);
-      if (diaryRes) setDiary(diaryRes);
-    } catch (err: any) {
-      console.warn('Failed to load patient domain data, keeping fallback', err);
-    } finally {
-      setIsLoading(false);
+    const [memoriesRes, peopleRes, albumsRes, routineRes, diaryRes] = await Promise.allSettled([
+      memoryApi.listMemories(patId),
+      personApi.listPeople(patId),
+      albumApi.listAlbums(patId),
+      routineApi.listRoutine(patId),
+      diaryApi.getDiary(patId)
+    ]);
+
+    let anyFailed = false;
+
+    if (memoriesRes.status === 'fulfilled') setMemories(memoriesRes.value.items);
+    else anyFailed = true;
+
+    if (peopleRes.status === 'fulfilled') setPeople(peopleRes.value);
+    else anyFailed = true;
+
+    if (albumsRes.status === 'fulfilled') setAlbums(albumsRes.value);
+    else anyFailed = true;
+
+    if (routineRes.status === 'fulfilled') setRoutine(routineRes.value);
+    else anyFailed = true;
+
+    if (diaryRes.status === 'fulfilled') setDiary(diaryRes.value);
+    else anyFailed = true;
+
+    if (anyFailed) {
+      setDataLoadError(true);
+      showToast('Some data could not be loaded from the server. Please check your connection.', 'amber');
     }
-  }, []);
+
+    setIsLoading(false);
+  }, [showToast]);
 
   // Bootstrap initial session & data
   useEffect(() => {
@@ -350,74 +371,124 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsPlayingMusic(false);
   };
 
-  // Memory Actions (Optimistic UI + API synchronization)
+  // -------------------------------------------------------------------
+  // Memory Actions — optimistic UI with rollback.
+  //
+  // Rule: a success message is shown only when the backend confirms the write.
+  // When the backend write fails, the optimistic change is rolled back and an
+  // error is surfaced. When there is no active patient workspace, the app is in
+  // a local-only demo and toasts are labelled accordingly (never "saved").
+  // -------------------------------------------------------------------
   const addMemory = async (mem: Omit<Memory, 'id'>): Promise<string> => {
     const tempId = `mem-${Date.now()}`;
-    const newMemory: Memory = { ...mem, id: tempId };
+    // A new memory ALWAYS starts as pending — only an explicit verification
+    // (backend) can mark it verified. Never optimistically mark it verified.
+    const newMemory: Memory = { ...mem, id: tempId, status: 'pending', approvedBy: undefined };
     setMemories(prev => [newMemory, ...prev]);
-
     setAlbums(prev =>
       prev.map(a => (a.id === mem.albumId ? { ...a, memoryCount: a.memoryCount + 1 } : a))
     );
 
-    if (activePatientId) {
-      try {
-        const created = await memoryApi.createMemory(activePatientId, mem);
-        setMemories(prev => prev.map(m => (m.id === tempId ? created : m)));
-        showToast(`Memory "${mem.title}" saved successfully!`, 'success');
-        return created.id;
-      } catch (err: any) {
-        showToast(`Saved locally (offline mode): ${err.message}`, 'amber');
-      }
+    if (!activePatientId) {
+      showToast(`Memory "${mem.title}" added (demo — not saved to a server).`, 'amber');
+      return tempId;
     }
 
-    showToast(`Memory "${mem.title}" saved successfully!`, 'success');
-    return tempId;
+    try {
+      const created = await memoryApi.createMemory(activePatientId, mem);
+      setMemories(prev => prev.map(m => (m.id === tempId ? created : m)));
+      showToast(`Memory "${mem.title}" saved. It is pending caregiver verification.`, 'success');
+      return created.id;
+    } catch (err: any) {
+      // Roll back the optimistic insert and album count.
+      setMemories(prev => prev.filter(m => m.id !== tempId));
+      setAlbums(prev =>
+        prev.map(a => (a.id === mem.albumId ? { ...a, memoryCount: Math.max(0, a.memoryCount - 1) } : a))
+      );
+      showToast(`Could not save memory: ${err.message}`, 'amber');
+      throw err;
+    }
   };
 
   const updateMemory = async (id: string, updates: Partial<Memory>) => {
+    const previous = memories.find(m => m.id === id);
     setMemories(prev => prev.map(m => (m.id === id ? { ...m, ...updates } : m)));
-    showToast('Memory updated.', 'info');
+
+    if (!activePatientId || id.startsWith('mem-')) {
+      showToast('Memory updated (demo — not saved to a server).', 'amber');
+      return;
+    }
 
     try {
-      await memoryApi.updateMemory(id, updates);
+      const saved = await memoryApi.updateMemory(id, updates);
+      setMemories(prev => prev.map(m => (m.id === id ? saved : m)));
+      showToast('Memory updated.', 'success');
     } catch (err: any) {
-      console.warn('Backend updateMemory failed, keeping optimistic state', err);
+      if (previous) setMemories(prev => prev.map(m => (m.id === id ? previous : m)));
+      showToast(`Could not update memory: ${err.message}`, 'amber');
+      throw err;
     }
   };
 
   const deleteMemory = async (id: string) => {
+    const previous = memories;
     setMemories(prev => prev.filter(m => m.id !== id));
-    showToast('Memory removed.', 'amber');
+
+    if (!activePatientId || id.startsWith('mem-')) {
+      showToast('Memory removed (demo — not saved to a server).', 'amber');
+      return;
+    }
 
     try {
       await memoryApi.deleteMemory(id);
+      showToast('Memory removed.', 'info');
     } catch (err: any) {
-      console.warn('Backend deleteMemory failed', err);
+      setMemories(previous); // rollback
+      showToast(`Could not remove memory: ${err.message}`, 'amber');
+      throw err;
     }
   };
 
   const approveMemory = async (id: string, approverName: string = 'Anita (Caregiver)') => {
+    const previous = memories.find(m => m.id === id);
     setMemories(prev =>
       prev.map(m => (m.id === id ? { ...m, status: 'verified', approvedBy: approverName } : m))
     );
-    showToast('Memory verified! It is now accessible to the patient and AI companion.', 'success');
+
+    if (!activePatientId || id.startsWith('mem-')) {
+      showToast('Memory verified (demo — not saved to a server).', 'amber');
+      return;
+    }
 
     try {
-      await memoryApi.verifyMemory(id, `Approved by ${approverName}`);
+      const verified = await memoryApi.verifyMemory(id, `Approved by ${approverName}`);
+      setMemories(prev => prev.map(m => (m.id === id ? verified : m)));
+      showToast('Memory verified! It is now accessible to the patient and AI companion.', 'success');
     } catch (err: any) {
-      console.warn('Backend verifyMemory failed', err);
+      // CRITICAL: never leave a memory shown as verified when the backend did
+      // not verify it. Roll back to the real prior status.
+      if (previous) setMemories(prev => prev.map(m => (m.id === id ? previous : m)));
+      showToast(`Could not verify memory: ${err.message}. It remains unverified.`, 'amber');
+      throw err;
     }
   };
 
   const rejectMemory = async (id: string) => {
+    const previous = memories;
     setMemories(prev => prev.filter(m => m.id !== id));
-    showToast('Draft memory declined.', 'info');
+
+    if (!activePatientId || id.startsWith('mem-')) {
+      showToast('Draft memory declined (demo — not saved to a server).', 'amber');
+      return;
+    }
 
     try {
       await memoryApi.rejectMemory(id);
+      showToast('Draft memory declined.', 'info');
     } catch (err: any) {
-      console.warn('Backend rejectMemory failed', err);
+      setMemories(previous); // rollback
+      showToast(`Could not decline memory: ${err.message}`, 'amber');
+      throw err;
     }
   };
 
@@ -426,26 +497,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const tempId = `p-${Date.now()}`;
     const newPerson: Person = { ...person, id: tempId };
     setPeople(prev => [...prev, newPerson]);
-    showToast(`${person.name} added to family circle.`, 'success');
 
-    if (activePatientId) {
-      try {
-        const created = await personApi.createPerson(activePatientId, person);
-        setPeople(prev => prev.map(p => (p.id === tempId ? created : p)));
-      } catch (err: any) {
-        console.warn('Backend createPerson failed', err);
-      }
+    if (!activePatientId) {
+      showToast(`${person.name} added (demo — not saved to a server).`, 'amber');
+      return;
+    }
+
+    try {
+      const created = await personApi.createPerson(activePatientId, person);
+      setPeople(prev => prev.map(p => (p.id === tempId ? created : p)));
+      showToast(`${person.name} added to family circle.`, 'success');
+    } catch (err: any) {
+      setPeople(prev => prev.filter(p => p.id !== tempId)); // rollback
+      showToast(`Could not add ${person.name}: ${err.message}`, 'amber');
+      throw err;
     }
   };
 
   const updatePerson = async (id: string, updates: Partial<Person>) => {
+    const previous = people.find(p => p.id === id);
     setPeople(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
-    showToast('Family profile updated.', 'info');
+
+    if (!activePatientId || id.startsWith('p-')) {
+      showToast('Family profile updated (demo — not saved to a server).', 'amber');
+      return;
+    }
 
     try {
-      await personApi.updatePerson(id, updates);
+      const saved = await personApi.updatePerson(id, updates);
+      setPeople(prev => prev.map(p => (p.id === id ? saved : p)));
+      showToast('Family profile updated.', 'success');
     } catch (err: any) {
-      console.warn('Backend updatePerson failed', err);
+      if (previous) setPeople(prev => prev.map(p => (p.id === id ? previous : p)));
+      showToast(`Could not update profile: ${err.message}`, 'amber');
+      throw err;
     }
   };
 
@@ -454,15 +539,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const tempId = `rout-${Date.now()}`;
     const newItem: RoutineItem = { ...item, id: tempId };
     setRoutine(prev => [...prev, newItem]);
-    showToast('Routine reminder added.', 'success');
 
-    if (activePatientId) {
-      try {
-        const created = await routineApi.createRoutineItem(activePatientId, item);
-        setRoutine(prev => prev.map(r => (r.id === tempId ? created : r)));
-      } catch (err: any) {
-        console.warn('Backend createRoutineItem failed', err);
-      }
+    if (!activePatientId) {
+      showToast('Routine reminder added (demo — not saved to a server).', 'amber');
+      return;
+    }
+
+    try {
+      const created = await routineApi.createRoutineItem(activePatientId, item);
+      setRoutine(prev => prev.map(r => (r.id === tempId ? created : r)));
+      showToast('Routine reminder added.', 'success');
+    } catch (err: any) {
+      setRoutine(prev => prev.filter(r => r.id !== tempId)); // rollback
+      showToast(`Could not add routine reminder: ${err.message}`, 'amber');
+      throw err;
     }
   };
 
@@ -471,35 +561,55 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newCompleted = !item?.completed;
     setRoutine(prev => prev.map(r => (r.id === id ? { ...r, completed: newCompleted } : r)));
 
+    if (!activePatientId || id.startsWith('rout-')) return;
+
     try {
-      await routineApi.toggleRoutineCompleted(id, newCompleted);
+      const saved = await routineApi.toggleRoutineCompleted(id, newCompleted);
+      setRoutine(prev => prev.map(r => (r.id === id ? saved : r)));
     } catch (err: any) {
-      console.warn('Backend toggleRoutineCompleted failed', err);
+      // rollback the toggle
+      setRoutine(prev => prev.map(r => (r.id === id ? { ...r, completed: !newCompleted } : r)));
+      showToast(`Could not update reminder: ${err.message}`, 'amber');
     }
   };
 
   const deleteRoutineItem = async (id: string) => {
+    const previous = routine;
     setRoutine(prev => prev.filter(r => r.id !== id));
-    showToast('Routine item removed.', 'info');
+
+    if (!activePatientId || id.startsWith('rout-')) {
+      showToast('Routine item removed (demo — not saved to a server).', 'amber');
+      return;
+    }
 
     try {
       await routineApi.deleteRoutineItem(id);
+      showToast('Routine item removed.', 'info');
     } catch (err: any) {
-      console.warn('Backend deleteRoutineItem failed', err);
+      setRoutine(previous); // rollback
+      showToast(`Could not remove routine item: ${err.message}`, 'amber');
+      throw err;
     }
   };
 
   // Diary Actions
   const updateDiary = async (updates: Partial<DiaryEntry>) => {
+    const previous = diary;
     setDiary(prev => ({ ...prev, ...updates }));
-    showToast('Diary entry updated.', 'success');
 
-    if (activePatientId) {
-      try {
-        await diaryApi.saveDiary(activePatientId, updates);
-      } catch (err: any) {
-        console.warn('Backend saveDiary failed', err);
-      }
+    if (!activePatientId) {
+      showToast('Diary entry updated (demo — not saved to a server).', 'amber');
+      return;
+    }
+
+    try {
+      const saved = await diaryApi.saveDiary(activePatientId, updates);
+      setDiary(saved);
+      showToast('Diary entry updated.', 'success');
+    } catch (err: any) {
+      setDiary(previous); // rollback
+      showToast(`Could not save diary entry: ${err.message}`, 'amber');
+      throw err;
     }
   };
 
@@ -541,6 +651,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         patientsList,
         selectPatient,
         isLoading,
+        dataLoadError,
         refreshData,
 
         // Domain
