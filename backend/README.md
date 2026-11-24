@@ -16,7 +16,14 @@ Secure, modular REST backend for MemoryBridge.
   - Magic-byte validation (`image/jpeg`, `image/png`, `image/webp`, `audio/mpeg`, `audio/wav`, `audio/mp4`, `video/mp4`, `video/webm`).
   - Pluggable storage providers (`STORAGE_PROVIDER=local|firebase|mock`).
   - Safety rule: Mutating/attaching media on `VERIFIED` memories auto-reverts status to `PENDING`.
-- **Comprehensive Test Suite**: 101 automated tests across 5 test suites.
+- **Grounded AI Companion**:
+  - Verified-memory-only semantic retrieval (embedding provider + confidence/coverage thresholds).
+  - Provider-independent LLM layer (`src/services/llm/`) that rephrases **only** retrieved
+    verified facts; never called when no memory matches, so it cannot invent history.
+  - Providers: `none` (rule-based), `mock` (offline), `openai`, `anthropic`. Keys are
+    backend-only via `LLM_API_KEY`; remote calls use timeouts with graceful fallback.
+  - Every answer reports `answerSource` + `supportingMemoryId` for traceability.
+- **Comprehensive Test Suite**: 133 automated tests across 8 test suites.
 
 ## Available Scripts
 

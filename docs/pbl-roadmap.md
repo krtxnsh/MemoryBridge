@@ -56,6 +56,15 @@ MemoryBridge is a caregiver-governed memory recall system. Its primary contribut
 - [x] Store the supporting memory ID and retrieval score with each answer
 - [x] Add evaluation cases for paraphrases, false matches and pending-memory leakage
 
+### Phase 4b — Provider-independent LLM grounding layer
+
+- [x] Swap-ready `LlmProvider` interface with mock, OpenAI-compatible and Anthropic providers
+- [x] Backend-only API keys via environment variables
+- [x] Request timeouts (`AbortController`) with graceful fallback to the deterministic reply
+- [x] Grounding guard: the LLM is never called without retrieved verified facts
+- [x] Answer provenance (`answerSource`, `supportingMemoryId`) returned to the client
+- [x] Tests for grounding, timeout handling and end-to-end grounded replies (mock provider)
+
 ### Phase 5 — Caregiver-reviewed AI descriptions
 
 - [ ] Add an image-description provider interface
