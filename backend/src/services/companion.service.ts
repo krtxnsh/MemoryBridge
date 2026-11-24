@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { formatDisplayTime } from './routine.service.js';
 import { embeddingService } from './embedding.service.js';
+import { generateGroundedReply, getLlmProvider } from './llm/index.js';
 
 const UNKNOWN_MEMORY_REPLY =
   "I don't have that memory in your family storybook yet. Perhaps someone in your family can tell us more.";
@@ -53,7 +54,12 @@ export class CompanionService {
       verifiedMemoryCount,
       upcomingRoutineCount: routineCount,
       recentConversationId: latestConversation?.id || null,
-      explanation: 'Rule-based memory companion with verified semantic retrieval'
+      explanation: (() => {
+        const llm = getLlmProvider();
+        return llm
+          ? `Rule-based memory companion with verified semantic retrieval, phrased by the ${llm.name} LLM (grounded, verified-memory only).`
+          : 'Rule-based memory companion with verified semantic retrieval';
+      })()
     };
   }
 
@@ -127,16 +133,55 @@ export class CompanionService {
     const suggestedRoutine = matchedRoutine.slice(0, 3);
     const answerRetrieval = isRoutineQuery && suggestedRoutine.length > 0 ? null : topRetrieval;
 
+    // Grounded facts: the ONLY material an LLM is ever allowed to rephrase.
+    const groundedFacts: string[] = [];
+
     if (isRoutineQuery && suggestedRoutine.length > 0) {
       const nextItem = suggestedRoutine[0];
       reply = `Let's check your schedule, ${firstName}. You have "${nextItem.title}" coming up at ${formatDisplayTime(nextItem.scheduledTime)}. We can take our time and do it together!`;
+      for (const item of suggestedRoutine) {
+        groundedFacts.push(`You have "${item.title}" scheduled at ${formatDisplayTime(item.scheduledTime)}.`);
+      }
     } else if (suggestedMemories.length > 0) {
       const topMem = suggestedMemories[0];
       const groundedDetail = topMem.description || topMem.story;
       reply = `Your family storybook has a verified memory called "${topMem.title}" from ${topMem.approximateYear || topMem.era}. ${groundedDetail} Would you like to look at the photos together?`;
+      for (const mem of suggestedMemories.slice(0, 2)) {
+        const when = mem.approximateYear || mem.era || '';
+        const where = mem.location ? `, ${mem.location}` : '';
+        const people = (mem.people || [])
+          .map((p: any) => p.person?.fullName)
+          .filter(Boolean)
+          .join(', ');
+        const peoplePart = people ? ` With ${people}.` : '';
+        groundedFacts.push(
+          `"${mem.title}"${when ? ` (${when}${where})` : where}: ${mem.description || mem.story}.${peoplePart}`.trim()
+        );
+      }
     } else {
       // Never substitute an unrelated memory or invent a family fact.
       reply = UNKNOWN_MEMORY_REPLY;
+    }
+
+    // 5. Optional LLM phrasing layer. The LLM only ever rephrases the grounded
+    // facts above; when there are no facts (fallback case) it is never called, so
+    // it can never invent personal history, override verification, or leak a
+    // pending memory. Any provider error/timeout keeps the deterministic reply.
+    let answerSource: 'llm' | 'rule_based' | 'fallback' =
+      groundedFacts.length > 0 ? 'rule_based' : 'fallback';
+    let llmMeta: { provider: string; model: string; latencyMs: number } | null = null;
+
+    if (groundedFacts.length > 0) {
+      const phrased = await generateGroundedReply({
+        firstName,
+        question: text,
+        facts: groundedFacts
+      });
+      if (phrased) {
+        reply = phrased.text;
+        answerSource = 'llm';
+        llmMeta = { provider: phrased.provider, model: phrased.model, latencyMs: phrased.latencyMs };
+      }
     }
 
     // 6. Record conversation turn transactionally
@@ -231,7 +276,22 @@ export class CompanionService {
         score: null,
         ...embeddingService.metadata
       },
-      explanation: 'Rule-based companion grounded by verified semantic memory retrieval'
+      // Provenance so the UI can tell the patient/caregiver where the answer came
+      // from: 'llm' (grounded phrasing), 'rule_based' (deterministic template from
+      // verified facts), or 'fallback' (no verified memory — honest "I don't know").
+      answerSource,
+      grounding: {
+        source: answerSource,
+        usedVerifiedMemory: Boolean(answerRetrieval),
+        supportingMemoryId: answerRetrieval?.memory.id || null,
+        llm: llmMeta
+      },
+      explanation:
+        answerSource === 'fallback'
+          ? 'No verified memory matched; returned the safe fallback without generating any content.'
+          : answerSource === 'llm'
+            ? `Answer phrased by the ${llmMeta?.provider} LLM strictly from verified memory facts (grounded, no invention).`
+            : 'Deterministic companion grounded by verified semantic memory retrieval.'
     };
   }
 }

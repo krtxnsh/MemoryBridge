@@ -43,6 +43,19 @@ export const envSchema = z
     FIREBASE_STORAGE_BUCKET: z.string().optional().default(''),
 
     AI_PROVIDER: z.enum(['none', 'rule_based']).default('none'),
+
+    // Provider-independent LLM phrasing layer. The LLM only rephrases
+    // already-retrieved verified-memory facts; it never introduces new facts.
+    // Remote providers read their key on the backend only (never exposed to the
+    // client). When a remote provider is selected without LLM_API_KEY, the
+    // companion silently keeps its deterministic grounded reply.
+    LLM_PROVIDER: z.enum(['none', 'mock', 'openai', 'anthropic']).default('none'),
+    LLM_API_KEY: z.string().optional().default(''),
+    LLM_MODEL: z.string().optional().default(''),
+    LLM_BASE_URL: z.string().optional().default(''),
+    LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
+    LLM_MAX_TOKENS: z.coerce.number().int().positive().default(320),
+
     EMBEDDING_PROVIDER: z.enum(['local_semantic']).default('local_semantic'),
     MEMORY_RETRIEVAL_THRESHOLD: z.coerce.number().min(0).max(1).default(0.24),
     MEMORY_RETRIEVAL_MIN_COVERAGE: z.coerce.number().min(0).max(1).default(0.34)
