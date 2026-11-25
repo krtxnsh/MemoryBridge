@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "npm --prefix backend test",
+    "test:e2e": "bash e2e/run-e2e.sh",
     "check": "npm run lint && npm run build && npm test",
     "preview": "vite preview"
   },

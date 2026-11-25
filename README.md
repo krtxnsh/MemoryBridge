@@ -18,8 +18,8 @@ It is **not** a medical, diagnostic, monitoring, or clinical treatment tool. It 
 
 ```
                        ┌──────────────────────────────┐
-                       │     MemoryBridge Core DB     │
-                       │    (localStorage / Cloud)    │
+                       │     MemoryBridge Core API    │
+                       │  (Express + Prisma/Postgres) │
                        └──────────────┬───────────────┘
                                       │
             ┌─────────────────────────┴─────────────────────────┐
@@ -73,9 +73,12 @@ The application is architected with swap-ready TypeScript interfaces under `src/
    - `generateStoryDraft(input)`: Generates deterministic memory drafts from user-entered titles, dates, locations, and tagged people.
    - Swap: Connect to an LLM endpoint with few-shot prompts instructed to never extrapolate beyond passed fields.
 
-3. **`IConversationService`**:
+3. **`IConversationService`** (client-side offline fallback only):
    - `respond(userText, allMemories, allPeople, patientName)`: Keyword and entity matching engine with strict safety guardrails.
-   - Swap: Connect to a LangChain / FastAPI pipeline running Gemini Flash with strict structured outputs.
+   - In the running app the patient companion calls the **backend** companion
+     endpoint (verified-memory retrieval + the grounded LLM layer); this local
+     engine is used only when the backend is unreachable. See the AI Companion
+     section below and `backend/src/services/llm/`.
 
 4. **`ISpeechService`**:
    - Text-to-speech using browser `window.speechSynthesis` with warm rate (0.88x) and pitch controls.
@@ -105,21 +108,78 @@ The application is architected with swap-ready TypeScript interfaces under `src/
 
 ---
 
-## 🚀 Running the Prototype Locally
+## 🤖 AI Companion & Verified-Memory Grounding
+
+The companion is **grounded, not generative-by-default**. Every answer is traceable
+to a family-verified memory:
+
+1. The patient's question is embedded and matched against **verified memories only**
+   (semantic retrieval with a configurable confidence + coverage threshold).
+2. If nothing matches, the companion returns the exact safe fallback and **never
+   calls an LLM** — so it cannot invent people, places, dates or events.
+3. If a verified memory matches, an optional **provider-independent LLM layer**
+   (`backend/src/services/llm/`) rephrases *only those retrieved facts* into a warm,
+   short reply. A hard grounding guard refuses to generate when there are zero facts.
+4. Every response reports its provenance: `answerSource` (`llm` | `rule_based` |
+   `fallback`) and the `supportingMemoryId`.
+
+LLM providers are swappable and **keys live on the backend only**:
+
+| `LLM_PROVIDER` | Behaviour |
+| --- | --- |
+| `none` (default) | Deterministic rule-based replies from verified facts |
+| `mock` | Offline deterministic grounded provider (great for CI / no keys) |
+| `openai` | OpenAI-compatible Chat Completions (`LLM_API_KEY`, `LLM_MODEL`) |
+| `anthropic` | Anthropic Messages API (`LLM_API_KEY`, `LLM_MODEL`) |
+
+Remote calls use `AbortController` timeouts and fall back to the deterministic
+grounded reply on any error. See `backend/.env.example` for all options.
+
+## 🚀 Running Locally (Full Stack)
+
+**Backend (Express + Prisma + PostgreSQL):**
 
 ```bash
-# 1. Install dependencies
+cd backend
+cp .env.example .env            # set DATABASE_URL + JWT secrets (see file)
 npm install
+npx prisma migrate deploy       # apply migrations
+npx prisma generate
+npm run dev                      # API on http://localhost:4000
+```
 
-# 2. Run development server
-npm run dev
+**Frontend (React + Vite):**
 
-# 3. Open in browser
-http://127.0.0.1:5173/
+```bash
+npm install
+npm run dev                      # app on http://127.0.0.1:5173 (proxies /api -> backend)
 ```
 
 - Navigate to `/` for the Public Landing Page.
 - Navigate to `/patient` for the Tablet Companion Experience.
 - Navigate to `/family` for the Caregiver Management Hub.
-- Edits, new storybooks, and verification approvals persist in `localStorage`.
-- Click **"Reset Demo Data"** in Caregiver Settings anytime to restore original state.
+- A signed-in workspace uses the **backend as the source of truth**. Seed content in
+  `src/data/mockData.ts` is only a fallback for the signed-out public demo; it is
+  never substituted for a failed backend request, and writes that fail are rolled
+  back instead of being reported as saved.
+- Click **"Reset Demo Data"** in Caregiver Settings to restore the seeded workspace
+  in the database.
+
+### Checks
+
+```bash
+npm run lint      # frontend lint (oxlint)
+npm run build     # frontend type-check + production build
+cd backend && npm test   # backend suite (requires a reachable PostgreSQL)
+npm run test:e2e  # real-browser end-to-end flow (boots DB/API/web; see e2e/README.md)
+```
+
+## 📚 Project Documentation
+
+- [`docs/srs.md`](docs/srs.md) — Software Requirements Specification
+- [`docs/design.md`](docs/design.md) — architecture, ER and use-case diagrams, companion data flow
+- [`docs/test-report.md`](docs/test-report.md) — verified test results and limitations
+- [`docs/accessibility-audit.md`](docs/accessibility-audit.md) — Lighthouse + axe accessibility audit
+- [`docs/demo-script.md`](docs/demo-script.md) — 5-minute demonstration script
+- [`docs/pbl-roadmap.md`](docs/pbl-roadmap.md) — delivery roadmap and status
+- [`e2e/README.md`](e2e/README.md) — end-to-end test details

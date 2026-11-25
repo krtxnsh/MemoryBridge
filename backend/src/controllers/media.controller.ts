@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import { mediaService } from '../services/media.service';
 import { sendSuccess } from '../utils/response';
+import { AiDescriptionStatus } from '@prisma/client';
 import {
   createUploadUrlSchema,
   confirmUploadSchema,
   updateMediaSchema,
-  listMediaQuerySchema
+  listMediaQuerySchema,
+  reviewAiDescriptionSchema,
+  listAiDescriptionsQuerySchema
 } from '../validators/media.validator';
 
 export class MediaController {
@@ -73,6 +76,39 @@ export class MediaController {
       req.user!.id,
       req.patientAccess?.accessRole,
       !!req.patientSession
+    );
+    sendSuccess(res, result, 200);
+  }
+
+  async generateAiDescription(req: Request, res: Response): Promise<void> {
+    const result = await mediaService.generateAiDescription(
+      req.params.id as string,
+      req.user!.id,
+      req.patientAccess?.accessRole,
+      !!req.patientSession
+    );
+    sendSuccess(res, result, 201);
+  }
+
+  async reviewAiDescription(req: Request, res: Response): Promise<void> {
+    const input = reviewAiDescriptionSchema.parse(req.body);
+    const result = await mediaService.reviewAiDescription(
+      req.params.id as string,
+      req.user!.id,
+      req.patientAccess?.accessRole,
+      !!req.patientSession,
+      input
+    );
+    sendSuccess(res, result, 200);
+  }
+
+  async listAiDescriptions(req: Request, res: Response): Promise<void> {
+    const query = listAiDescriptionsQuerySchema.parse(req.query);
+    const result = await mediaService.listAiDescriptions(
+      req.params.patientId as string,
+      req.patientAccess?.accessRole,
+      !!req.patientSession,
+      (query.status as AiDescriptionStatus) || AiDescriptionStatus.AI_SUGGESTED
     );
     sendSuccess(res, result, 200);
   }

@@ -38,3 +38,4 @@ serviceAccountKey.json
 *.pem
 *.key
 
+e2e/artifacts/

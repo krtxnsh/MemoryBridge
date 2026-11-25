@@ -17,20 +17,62 @@ import {
   Eye,
   Check
 } from 'lucide-react';
-import { Memory } from '../../types';
+import { Memory, Storybook } from '../../types';
 
 export const CaregiverLibrary: React.FC = () => {
   const navigate = useNavigate();
-  const { memories, albums, people, deleteMemory, updateMemory } = useApp();
+  const {
+    memories,
+    albums,
+    people,
+    storybooks,
+    deleteMemory,
+    updateMemory,
+    createStorybook,
+    deleteStorybook
+  } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAlbum, setSelectedAlbum] = useState<string>('all');
   const [selectedPerson, setSelectedPerson] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'verified' | 'pending'>('all');
-  
+
   // Modals
   const [memoryToDelete, setMemoryToDelete] = useState<Memory | null>(null);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
+
+  // Storybook creation
+  const [showStorybookModal, setShowStorybookModal] = useState(false);
+  const [sbTitle, setSbTitle] = useState('');
+  const [sbDescription, setSbDescription] = useState('');
+  const [sbMemoryIds, setSbMemoryIds] = useState<string[]>([]);
+  const [sbSaving, setSbSaving] = useState(false);
+  const [storybookToDelete, setStorybookToDelete] = useState<Storybook | null>(null);
+
+  // Only verified memories can be curated into a patient-facing storybook, and
+  // only real (persisted) memories — a temp optimistic id cannot be referenced.
+  const verifiedMemories = memories.filter(m => m.status === 'verified' && !m.id.startsWith('mem-'));
+
+  const toggleSbMemory = (id: string) => {
+    setSbMemoryIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+
+  const handleCreateStorybook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sbTitle.trim() || sbMemoryIds.length === 0) return;
+    setSbSaving(true);
+    try {
+      await createStorybook({ title: sbTitle.trim(), description: sbDescription.trim(), memoryIds: sbMemoryIds });
+      setShowStorybookModal(false);
+      setSbTitle('');
+      setSbDescription('');
+      setSbMemoryIds([]);
+    } catch {
+      // error toast already shown by the context action
+    } finally {
+      setSbSaving(false);
+    }
+  };
 
   // Filtered memories
   let displayedMemories = memoryService.searchMemories(memories, searchQuery);
@@ -121,6 +163,67 @@ export const CaregiverLibrary: React.FC = () => {
         })}
       </div>
 
+      {/* Storybooks — curated collections persisted in the database */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-surface-border shadow-soft">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-primary" />
+            <h2 className="font-serif text-lg font-bold text-ink-primary">Storybooks</h2>
+            <span className="text-xs text-ink-secondary">({storybooks.length})</span>
+          </div>
+          <button
+            onClick={() => setShowStorybookModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-warm-peach text-primary-text border border-primary-200 font-semibold text-xs hover:bg-primary-100"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Storybook</span>
+          </button>
+        </div>
+
+        {storybooks.length === 0 ? (
+          <p className="text-sm text-ink-secondary">
+            No storybooks yet. Curate verified memories into a themed collection for {' '}
+            Rajiv’s tablet (e.g. “Our Wedding Years”).
+          </p>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {storybooks.map((sb) => (
+              <div
+                key={sb.id}
+                className="min-w-[220px] max-w-[220px] bg-warm-cream/60 rounded-2xl border border-warm-sand p-4 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                      sb.status === 'published'
+                        ? 'bg-[#E8F5E9] text-[#2E7D32] border border-[#A5D6A7]'
+                        : 'bg-[#FEF8E7] text-[#D97706] border border-[#FAD7A0]'
+                    }`}>
+                      {sb.status}
+                    </span>
+                    <button
+                      onClick={() => setStorybookToDelete(sb)}
+                      className="p-1 rounded-lg text-ink-secondary hover:text-red-600 hover:bg-red-50"
+                      title="Delete storybook"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <h3 className="font-serif text-base font-bold text-ink-primary mt-2 line-clamp-2">{sb.title}</h3>
+                  {sb.description && (
+                    <p className="text-xs text-ink-secondary mt-1 line-clamp-2">{sb.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 mt-3 text-xs text-ink-secondary">
+                  <BookOpen className="w-3.5 h-3.5 text-primary" />
+                  <span>{sb.memoryCount} verified {sb.memoryCount === 1 ? 'memory' : 'memories'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Search & Filter Controls */}
       <div className="bg-white p-4 rounded-2xl border border-surface-border shadow-soft flex flex-col md:flex-row gap-3 items-center justify-between">
         {/* Search Input */}
@@ -141,6 +244,7 @@ export const CaregiverLibrary: React.FC = () => {
           <select
             value={selectedPerson}
             onChange={(e) => setSelectedPerson(e.target.value)}
+            aria-label="Filter memories by person"
             className="px-3 py-2 rounded-xl bg-warm-cream border border-surface-border text-xs text-ink-primary font-medium focus:outline-none"
           >
             <option value="all">All People</option>
@@ -153,6 +257,7 @@ export const CaregiverLibrary: React.FC = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
+            aria-label="Filter memories by verification status"
             className="px-3 py-2 rounded-xl bg-warm-cream border border-surface-border text-xs text-ink-primary font-medium focus:outline-none"
           >
             <option value="all">All Verification Statuses</option>
@@ -271,6 +376,130 @@ export const CaregiverLibrary: React.FC = () => {
               </button>
               <button
                 onClick={handleDeleteConfirm}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-700 text-white shadow-soft"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Storybook Modal — curate verified memories into a collection */}
+      {showStorybookModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <form
+            onSubmit={handleCreateStorybook}
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-surface-border animate-fadeIn flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
+          >
+            <div>
+              <h3 className="font-serif text-xl font-bold text-ink-primary">Create a Storybook</h3>
+              <p className="text-sm text-ink-secondary mt-1">
+                Group verified memories into a themed collection. Only verified memories can be added.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-ink-secondary uppercase">Title</label>
+              <input
+                type="text"
+                value={sbTitle}
+                onChange={(e) => setSbTitle(e.target.value)}
+                placeholder="e.g. Our Wedding Years"
+                className="mt-1 w-full p-2.5 rounded-xl border border-surface-border text-sm"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-ink-secondary uppercase">Description (optional)</label>
+              <input
+                type="text"
+                value={sbDescription}
+                onChange={(e) => setSbDescription(e.target.value)}
+                className="mt-1 w-full p-2.5 rounded-xl border border-surface-border text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-ink-secondary uppercase block mb-2">
+                Choose verified memories ({sbMemoryIds.length} selected)
+              </label>
+              {verifiedMemories.length === 0 ? (
+                <p className="text-sm text-ink-secondary bg-warm-cream rounded-xl p-3">
+                  No verified memories yet. Verify a memory first, then curate it into a storybook.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto pr-1">
+                  {verifiedMemories.map((m) => {
+                    const checked = sbMemoryIds.includes(m.id);
+                    return (
+                      <button
+                        type="button"
+                        key={m.id}
+                        onClick={() => toggleSbMemory(m.id)}
+                        className={`flex items-center gap-3 p-2 rounded-xl border text-left transition-colors ${
+                          checked ? 'bg-warm-peach border-primary' : 'bg-warm-cream border-surface-border hover:bg-warm-peach/50'
+                        }`}
+                      >
+                        <span className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+                          checked ? 'bg-primary text-white' : 'bg-white border border-surface-border'
+                        }`}>
+                          {checked && <Check className="w-3.5 h-3.5" />}
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-semibold text-ink-primary line-clamp-1">{m.title}</span>
+                          <span className="block text-[11px] text-ink-secondary">{m.year} · {m.location}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-surface-border">
+              <button
+                type="button"
+                onClick={() => setShowStorybookModal(false)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-ink-secondary hover:bg-warm-cream"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={sbSaving || !sbTitle.trim() || sbMemoryIds.length === 0}
+                className="px-5 py-2 rounded-xl text-sm font-semibold bg-primary hover:bg-primary-hover text-white shadow-soft disabled:opacity-50"
+              >
+                {sbSaving ? 'Saving…' : 'Create Storybook'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Delete Storybook confirmation */}
+      {storybookToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-surface-border animate-fadeIn">
+            <h3 className="font-serif text-xl font-bold text-ink-primary">Delete Storybook?</h3>
+            <p className="text-sm text-ink-secondary mt-2">
+              Remove <span className="font-semibold text-ink-primary">"{storybookToDelete.title}"</span>?
+              The memories inside it are not deleted — only this collection.
+            </p>
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <button
+                onClick={() => setStorybookToDelete(null)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-ink-secondary hover:bg-warm-cream"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const target = storybookToDelete;
+                  setStorybookToDelete(null);
+                  try { await deleteStorybook(target.id); } catch { /* toast shown */ }
+                }}
                 className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-700 text-white shadow-soft"
               >
                 Confirm Delete

@@ -45,6 +45,9 @@ export const PatientCompanion: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [voiceNotice, setVoiceNotice] = useState<string>('');
+  // Heard-but-not-yet-sent voice transcript. We never auto-submit speech: the
+  // patient confirms it first, so a mis-heard question is never asked for them.
+  const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const initialPromptHandledRef = useRef(false);
@@ -68,6 +71,7 @@ export const PatientCompanion: React.FC = () => {
 
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
+    setPendingTranscript(null);
     setIsThinking(true);
 
     // Stop ongoing speech
@@ -145,7 +149,10 @@ export const PatientCompanion: React.FC = () => {
         (transcript) => {
           setIsListening(false);
           setVoiceNotice('');
-          handleUserSubmit(transcript);
+          // Do NOT submit automatically. Show the transcript and let the
+          // patient confirm it first.
+          setInputText(transcript);
+          setPendingTranscript(transcript);
         },
         (errorMsg) => {
           setIsListening(false);
@@ -313,6 +320,42 @@ export const PatientCompanion: React.FC = () => {
           </div>
         )}
 
+        {/* Transcript confirmation — the patient confirms before the question is asked */}
+        {pendingTranscript && (
+          <div className="mb-3 p-4 rounded-2xl bg-white border-2 border-primary-200 shadow-soft">
+            <p className="text-sm font-semibold text-ink-secondary">I heard you say:</p>
+            <p className="font-serif text-xl text-ink-primary mt-1">“{pendingTranscript}”</p>
+            <p className="text-sm text-ink-secondary mt-1">Is that right? You can also edit it below.</p>
+            <div className="flex flex-wrap items-center gap-3 mt-3">
+              <button
+                onClick={() => handleUserSubmit(pendingTranscript)}
+                disabled={isThinking}
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-primary hover:bg-primary-hover text-white font-bold shadow-soft hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 min-h-[56px]"
+              >
+                <Send className="w-5 h-5" />
+                <span>Yes, ask this</span>
+              </button>
+              <button
+                onClick={() => {
+                  setPendingTranscript(null);
+                  setInputText('');
+                  handleMicToggle();
+                }}
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-white border-2 border-warm-sand text-ink-primary font-semibold hover:border-primary transition-colors min-h-[56px]"
+              >
+                <Mic className="w-5 h-5 text-primary" />
+                <span>No, say it again</span>
+              </button>
+              <button
+                onClick={() => setPendingTranscript(null)}
+                className="px-4 py-3 rounded-2xl text-ink-secondary font-semibold hover:text-ink-primary min-h-[56px]"
+              >
+                Type instead
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Input Bar with Large Mic Button */}
         <div className="mt-4 pt-3 border-t border-warm-sand flex items-center gap-3">
           {/* Big Mic Button */}
@@ -335,7 +378,7 @@ export const PatientCompanion: React.FC = () => {
             <input
               type="text"
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => { setInputText(e.target.value); if (pendingTranscript) setPendingTranscript(null); }}
               onKeyDown={(e) => e.key === 'Enter' && !isThinking && handleUserSubmit(inputText)}
               disabled={isThinking}
               placeholder="Type anything or ask a question about your memories..."

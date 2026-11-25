@@ -56,29 +56,38 @@ MemoryBridge is a caregiver-governed memory recall system. Its primary contribut
 - [x] Store the supporting memory ID and retrieval score with each answer
 - [x] Add evaluation cases for paraphrases, false matches and pending-memory leakage
 
+### Phase 4b — Provider-independent LLM grounding layer
+
+- [x] Swap-ready `LlmProvider` interface with mock, OpenAI-compatible and Anthropic providers
+- [x] Backend-only API keys via environment variables
+- [x] Request timeouts (`AbortController`) with graceful fallback to the deterministic reply
+- [x] Grounding guard: the LLM is never called without retrieved verified facts
+- [x] Answer provenance (`answerSource`, `supportingMemoryId`) returned to the client
+- [x] Tests for grounding, timeout handling and end-to-end grounded replies (mock provider)
+
 ### Phase 5 — Caregiver-reviewed AI descriptions
 
-- [ ] Add an image-description provider interface
-- [ ] Store AI output separately from family-entered text
-- [ ] Mark generated descriptions as `AI_SUGGESTED`
-- [ ] Require caregiver editing or approval before patient visibility
-- [ ] Record provider, generation time and approver in the audit trail
+- [x] Add an image-description provider interface (`backend/src/services/vision/`: mock + OpenAI)
+- [x] Store AI output separately from family-entered text (`Media.aiDescription` vs `caption`)
+- [x] Mark generated descriptions as `AI_SUGGESTED`
+- [x] Require caregiver editing or approval before patient visibility (approval promotes to caption)
+- [x] Record provider, generation time and approver in the audit trail
 
 ### Phase 6 — Accessibility and end-to-end validation
 
-- [ ] Reduce the patient home screen to four primary actions
-- [ ] Add transcript confirmation before a voice question is submitted
-- [ ] Add reduced-motion and high-contrast preferences
-- [ ] Add Playwright flows for invitation, verification and companion recall
-- [ ] Run Lighthouse accessibility checks on desktop and tablet layouts
+- [x] Reduce the patient home screen to four primary actions (secondary actions demoted)
+- [x] Add transcript confirmation before a voice question is submitted
+- [x] Add reduced-motion and high-contrast preferences (toggles + persisted; browser-verified)
+- [x] Add Playwright flows (caregiver demo, verified-memory load, companion recall, safe fallback, persistence, auth guard) in `e2e/`
+- [x] Run Lighthouse + axe accessibility checks; fixes applied (`docs/accessibility-audit.md`)
 
 ### Phase 7 — Deployment and submission
 
-- [ ] Deploy frontend, API, PostgreSQL and private media storage
-- [ ] Configure production CORS, HTTPS and secrets
-- [ ] Prepare the SRS, use-case diagram, ER diagram and architecture diagram
-- [ ] Produce a test report and limitations section
-- [ ] Prepare a five-minute demonstration script and presentation
+- [ ] Deploy frontend, API, PostgreSQL and private media storage (blocked: hosting credentials)
+- [ ] Configure production CORS, HTTPS and secrets (blocked: deployment)
+- [x] Prepare the SRS (`docs/srs.md`), use-case / ER / architecture diagrams (`docs/design.md`)
+- [x] Produce a test report and limitations section (`docs/test-report.md`)
+- [x] Prepare a five-minute demonstration script (`docs/demo-script.md`)
 
 ## Demonstration flow
 

@@ -162,6 +162,7 @@ export const CaregiverRoutine: React.FC = () => {
                 <select
                   value={period}
                   onChange={(e) => setPeriod(e.target.value as any)}
+                  aria-label="Routine period"
                   className="w-full p-2.5 rounded-xl border border-surface-border text-sm"
                 >
                   <option value="Morning">Morning</option>
@@ -176,6 +177,7 @@ export const CaregiverRoutine: React.FC = () => {
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as any)}
+                aria-label="Routine category"
                 className="w-full p-2.5 rounded-xl border border-surface-border text-sm"
               >
                 <option value="activity">Cognitive / Relaxation Activity</option>

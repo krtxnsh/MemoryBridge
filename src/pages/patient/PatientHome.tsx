@@ -38,55 +38,66 @@ export const PatientHome: React.FC = () => {
         </button>
       </div>
 
-      {/* TOP THREE COMPANION CIRCLES (Matching Sofia top row) */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-6 bg-gradient-to-r from-white/90 via-[#FFF9F3]/90 to-white/90 p-4 sm:p-6 rounded-3xl border border-warm-sand shadow-soft">
-        {/* My Music */}
-        <button
-          onClick={() => navigate('/patient/music')}
-          className="group flex flex-col items-center text-center p-3 sm:p-4 rounded-2xl hover:bg-white hover:shadow-soft transition-all"
-        >
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[#292521] via-[#423C36] to-[#1A1816] flex items-center justify-center text-white shadow-soft-md group-hover:scale-110 transition-transform relative">
-            {/* Vinyl record grooves */}
-            <div className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center">
-              <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                <div className="w-2 h-2 rounded-full bg-white" />
-              </div>
+      {/* FOUR PRIMARY ACTIONS — the main, low-load decision surface */}
+      <section aria-label="Main choices">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* 1. Talk to Mira (flagship) */}
+          <button
+            onClick={() => navigate('/patient/companion')}
+            className="flex items-center gap-4 p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-[#FFF5EC] to-[#FED7C3] border-2 border-primary hover:border-primary-hover shadow-soft hover:shadow-soft-md transition-all text-left group min-h-[112px]"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white group-hover:scale-110 transition-transform shrink-0 shadow-sm">
+              <MessageCircleHeart className="w-8 h-8" />
             </div>
-          </div>
-          <span className="mt-3 font-semibold text-ink-primary text-sm sm:text-base group-hover:text-primary transition-colors">
-            My Music
-          </span>
-          <span className="text-xs text-ink-secondary hidden sm:inline">Calming melodies</span>
-        </button>
+            <div>
+              <h3 className="font-serif text-xl sm:text-2xl font-bold text-primary-text">Talk to Mira</h3>
+              <p className="text-ink-primary text-sm sm:text-base font-medium">Revisit a memory together</p>
+            </div>
+          </button>
 
-        {/* My Journeys */}
-        <button
-          onClick={() => navigate('/patient/journeys')}
-          className="group flex flex-col items-center text-center p-3 sm:p-4 rounded-2xl hover:bg-white hover:shadow-soft transition-all"
-        >
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[#4FC3F7] to-[#0288D1] flex items-center justify-center text-white shadow-soft-md group-hover:scale-110 transition-transform relative">
-            <Globe className="w-10 h-10 sm:w-12 sm:h-12 text-white/90" />
-          </div>
-          <span className="mt-3 font-semibold text-ink-primary text-sm sm:text-base group-hover:text-primary transition-colors">
-            My Journeys
-          </span>
-          <span className="text-xs text-ink-secondary hidden sm:inline">Goa, Shimla & more</span>
-        </button>
+          {/* 2. My Memories */}
+          <button
+            onClick={() => navigate('/patient/memories')}
+            className="flex items-center gap-4 p-5 sm:p-6 rounded-3xl bg-white border-2 border-warm-peach hover:border-primary shadow-soft hover:shadow-soft-md transition-all text-left group min-h-[112px]"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-warm-peach flex items-center justify-center text-primary group-hover:scale-110 transition-transform shrink-0">
+              <BookOpen className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="font-serif text-xl sm:text-2xl font-bold text-ink-primary group-hover:text-primary transition-colors">My Memories</h3>
+              <p className="text-ink-secondary text-sm sm:text-base">Your life photo books</p>
+            </div>
+          </button>
 
-        {/* My Diary */}
-        <button
-          onClick={() => navigate('/patient/diary')}
-          className="group flex flex-col items-center text-center p-3 sm:p-4 rounded-2xl hover:bg-white hover:shadow-soft transition-all"
-        >
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-[#A1887F] to-[#5D4037] flex items-center justify-center text-white shadow-soft-md group-hover:scale-110 transition-transform relative border-l-4 border-[#3E2723]">
-            <BookMarked className="w-9 h-9 sm:w-11 sm:h-11 text-amber-200" />
-          </div>
-          <span className="mt-3 font-semibold text-ink-primary text-sm sm:text-base group-hover:text-primary transition-colors">
-            My Diary
-          </span>
-          <span className="text-xs text-ink-secondary hidden sm:inline">Daily family note</span>
-        </button>
-      </div>
+          {/* 3. My Family */}
+          <button
+            onClick={() => navigate('/patient/family')}
+            className="flex items-center gap-4 p-5 sm:p-6 rounded-3xl bg-white border-2 border-warm-peach hover:border-primary shadow-soft hover:shadow-soft-md transition-all text-left group min-h-[112px]"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-[#E8F8F5] flex items-center justify-center text-[#117A65] group-hover:scale-110 transition-transform shrink-0">
+              <Users className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="font-serif text-xl sm:text-2xl font-bold text-ink-primary group-hover:text-primary transition-colors">My Family</h3>
+              <p className="text-ink-secondary text-sm sm:text-base">The people who love you</p>
+            </div>
+          </button>
+
+          {/* 4. Listen to Music */}
+          <button
+            onClick={() => navigate('/patient/music')}
+            className="flex items-center gap-4 p-5 sm:p-6 rounded-3xl bg-white border-2 border-warm-peach hover:border-primary shadow-soft hover:shadow-soft-md transition-all text-left group min-h-[112px]"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-[#EBF4F6] flex items-center justify-center text-[#2563EB] group-hover:scale-110 transition-transform shrink-0">
+              <Music className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="font-serif text-xl sm:text-2xl font-bold text-ink-primary group-hover:text-primary transition-colors">Listen to Music</h3>
+              <p className="text-ink-secondary text-sm sm:text-base">Soothing songs you love</p>
+            </div>
+          </button>
+        </div>
+      </section>
 
       {/* 3D BOOKSHELF VIEW (Sofia reference middle shelf) */}
       <section className="bg-gradient-to-b from-[#FFFDF9] to-[#F5ECE1] p-4 sm:p-6 rounded-3xl border border-warm-sand shadow-soft">
@@ -159,107 +170,56 @@ export const PatientHome: React.FC = () => {
         <div className="h-4 bg-gradient-to-r from-[#D7CCC8] via-[#BCAAA4] to-[#A1887F] rounded-full shadow-md mt-1 border-t border-white/50" />
       </section>
 
-      {/* SIX LARGE TACTILE CHOICES (Patient Dementia-Friendly UX) */}
+      {/* MORE TO EXPLORE — secondary, visually lighter so it doesn't compete
+          with the four primary actions above. */}
       <section>
-        <h2 className="font-serif text-xl sm:text-2xl font-bold text-ink-primary mb-3 px-2">
-          What would you like to do?
+        <h2 className="font-serif text-lg sm:text-xl font-bold text-ink-secondary mb-3 px-2">
+          More to explore
         </h2>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* 1. My Memories */}
-          <button
-            onClick={() => navigate('/patient/memories')}
-            className="flex items-center gap-4 p-5 rounded-2xl bg-white border-2 border-warm-peach hover:border-primary shadow-soft hover:shadow-soft-md transition-all text-left group min-h-[88px]"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-warm-peach flex items-center justify-center text-primary group-hover:scale-110 transition-transform shrink-0">
-              <BookOpen className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="font-serif text-lg sm:text-xl font-bold text-ink-primary group-hover:text-primary transition-colors">
-                My Memories
-              </h3>
-              <p className="text-ink-secondary text-sm">Flip through your life photo books</p>
-            </div>
-          </button>
 
-          {/* 2. My Family */}
-          <button
-            onClick={() => navigate('/patient/family')}
-            className="flex items-center gap-4 p-5 rounded-2xl bg-white border-2 border-warm-peach hover:border-primary shadow-soft hover:shadow-soft-md transition-all text-left group min-h-[88px]"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-[#E8F8F5] flex items-center justify-center text-[#117A65] group-hover:scale-110 transition-transform shrink-0">
-              <Users className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="font-serif text-lg sm:text-xl font-bold text-ink-primary group-hover:text-primary transition-colors">
-                My Family
-              </h3>
-              <p className="text-ink-secondary text-sm">Anita, Riya, Daniel & loved ones</p>
-            </div>
-          </button>
-
-          {/* 3. My Life Story */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* My Life Story */}
           <button
             onClick={() => navigate('/patient/timeline')}
-            className="flex items-center gap-4 p-5 rounded-2xl bg-white border-2 border-warm-peach hover:border-primary shadow-soft hover:shadow-soft-md transition-all text-left group min-h-[88px]"
+            className="flex flex-col items-center text-center gap-2 p-4 rounded-2xl bg-white/70 border border-warm-sand hover:border-primary hover:bg-white transition-all group min-h-[96px]"
           >
-            <div className="w-14 h-14 rounded-2xl bg-[#FEF8E7] flex items-center justify-center text-[#D97706] group-hover:scale-110 transition-transform shrink-0">
-              <History className="w-7 h-7" />
+            <div className="w-12 h-12 rounded-2xl bg-[#FEF8E7] flex items-center justify-center text-[#D97706] group-hover:scale-110 transition-transform shrink-0">
+              <History className="w-6 h-6" />
             </div>
-            <div>
-              <h3 className="font-serif text-lg sm:text-xl font-bold text-ink-primary group-hover:text-primary transition-colors">
-                My Life Story
-              </h3>
-              <p className="text-ink-secondary text-sm">Your journey through the years</p>
-            </div>
+            <span className="font-semibold text-ink-primary text-sm group-hover:text-primary transition-colors">My Life Story</span>
           </button>
 
-          {/* 4. Listen to Music */}
-          <button
-            onClick={() => navigate('/patient/music')}
-            className="flex items-center gap-4 p-5 rounded-2xl bg-white border-2 border-warm-peach hover:border-primary shadow-soft hover:shadow-soft-md transition-all text-left group min-h-[88px]"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-[#EBF4F6] flex items-center justify-center text-[#2563EB] group-hover:scale-110 transition-transform shrink-0">
-              <Music className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="font-serif text-lg sm:text-xl font-bold text-ink-primary group-hover:text-primary transition-colors">
-                Listen to Music
-              </h3>
-              <p className="text-ink-secondary text-sm">Soothing songs from your past</p>
-            </div>
-          </button>
-
-          {/* 5. Daily Activities & Games */}
+          {/* Daily Activities */}
           <button
             onClick={() => navigate('/patient/activities')}
-            className="flex items-center gap-4 p-5 rounded-2xl bg-white border-2 border-warm-peach hover:border-primary shadow-soft hover:shadow-soft-md transition-all text-left group min-h-[88px]"
+            className="flex flex-col items-center text-center gap-2 p-4 rounded-2xl bg-white/70 border border-warm-sand hover:border-primary hover:bg-white transition-all group min-h-[96px]"
           >
-            <div className="w-14 h-14 rounded-2xl bg-[#FDEEE4] flex items-center justify-center text-[#B8431A] group-hover:scale-110 transition-transform shrink-0">
-              <CalendarDays className="w-7 h-7" />
+            <div className="w-12 h-12 rounded-2xl bg-[#FDEEE4] flex items-center justify-center text-[#B8431A] group-hover:scale-110 transition-transform shrink-0">
+              <CalendarDays className="w-6 h-6" />
             </div>
-            <div>
-              <h3 className="font-serif text-lg sm:text-xl font-bold text-ink-primary group-hover:text-primary transition-colors">
-                Daily Activities
-              </h3>
-              <p className="text-ink-secondary text-sm">Relaxing puzzles & morning routine</p>
-            </div>
+            <span className="font-semibold text-ink-primary text-sm group-hover:text-primary transition-colors">Daily Activities</span>
           </button>
 
-          {/* 6. Talk to MemoryBridge */}
+          {/* My Journeys */}
           <button
-            onClick={() => navigate('/patient/companion')}
-            className="flex items-center gap-4 p-5 rounded-2xl bg-gradient-to-br from-[#FFF5EC] to-[#FED7C3] border-2 border-primary hover:border-primary-hover shadow-soft hover:shadow-soft-md transition-all text-left group min-h-[88px]"
+            onClick={() => navigate('/patient/journeys')}
+            className="flex flex-col items-center text-center gap-2 p-4 rounded-2xl bg-white/70 border border-warm-sand hover:border-primary hover:bg-white transition-all group min-h-[96px]"
           >
-            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-white group-hover:scale-110 transition-transform shrink-0 shadow-sm">
-              <MessageCircleHeart className="w-7 h-7" />
+            <div className="w-12 h-12 rounded-2xl bg-[#E3F2FD] flex items-center justify-center text-[#0288D1] group-hover:scale-110 transition-transform shrink-0">
+              <Globe className="w-6 h-6" />
             </div>
-            <div>
-              <h3 className="font-serif text-lg sm:text-xl font-bold text-primary-text transition-colors">
-                Talk to MemoryBridge
-              </h3>
-              <p className="text-ink-primary text-sm font-medium">Revisit a memory with Mira</p>
+            <span className="font-semibold text-ink-primary text-sm group-hover:text-primary transition-colors">My Journeys</span>
+          </button>
+
+          {/* My Diary */}
+          <button
+            onClick={() => navigate('/patient/diary')}
+            className="flex flex-col items-center text-center gap-2 p-4 rounded-2xl bg-white/70 border border-warm-sand hover:border-primary hover:bg-white transition-all group min-h-[96px]"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-[#EFEBE9] flex items-center justify-center text-[#5D4037] group-hover:scale-110 transition-transform shrink-0">
+              <BookMarked className="w-6 h-6" />
             </div>
+            <span className="font-semibold text-ink-primary text-sm group-hover:text-primary transition-colors">My Diary</span>
           </button>
         </div>
       </section>

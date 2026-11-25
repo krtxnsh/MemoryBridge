@@ -10,6 +10,7 @@ import {
   Person,
   Memory,
   Album,
+  Storybook,
   RoutineItem,
   DiaryEntry,
   VerificationStatus,
@@ -273,6 +274,22 @@ export function toFrontendAlbum(b: any): Album {
     yearRange: b.yearRange || '',
     description: b.description || '',
     memoryCount: b.memoryCount ?? (b._count?.memories || 0)
+  };
+}
+
+export function toFrontendStorybook(b: any): Storybook {
+  const memories = Array.isArray(b.memories) ? b.memories : [];
+  return {
+    id: b.id,
+    title: b.title || 'Untitled Storybook',
+    description: b.description || '',
+    coverUrl: b.coverImage || '/placeholders/album-cover.svg',
+    status: (b.status || '').toUpperCase() === 'PUBLISHED' ? 'published' : 'draft',
+    generatedStory: b.generatedStory || '',
+    memoryCount: b.memoryCount ?? memories.length,
+    memoryIds: memories
+      .map((m: any) => m.memory?.id || m.memoryId || m.id)
+      .filter(Boolean)
   };
 }
 
@@ -630,10 +647,18 @@ export const personApi = {
   }
 };
 
+// The backend paginates list endpoints as { items, page, pageSize, total }.
+// Some older callers assumed a bare array; normalize both shapes here.
+function asList<T = any>(res: any): T[] {
+  if (Array.isArray(res)) return res;
+  if (res && Array.isArray(res.items)) return res.items;
+  return [];
+}
+
 export const albumApi = {
   async listAlbums(patientId: string) {
-    const res = await apiRequest<any[]>(`/patients/${patientId}/albums`);
-    return (res || []).map(toFrontendAlbum);
+    const res = await apiRequest<any>(`/patients/${patientId}/albums`);
+    return asList(res).map(toFrontendAlbum);
   },
 
   async createAlbum(patientId: string, album: Omit<Album, 'id'>) {
@@ -650,10 +675,53 @@ export const albumApi = {
   }
 };
 
+export const storybookApi = {
+  async listStorybooks(patientId: string) {
+    const res = await apiRequest<{ items: any[]; total: number }>(
+      `/patients/${patientId}/storybooks`
+    );
+    return (res.items || []).map(toFrontendStorybook);
+  },
+
+  async getStorybook(id: string) {
+    const res = await apiRequest<any>(`/storybooks/${id}`);
+    return toFrontendStorybook(res);
+  },
+
+  async createStorybook(
+    patientId: string,
+    input: { title: string; description?: string; memoryIds?: string[]; status?: 'draft' | 'published' }
+  ) {
+    const payload = {
+      title: input.title,
+      description: input.description,
+      status: (input.status || 'published').toUpperCase(),
+      memoryIds: input.memoryIds || []
+    };
+    const res = await apiRequest<any>(`/patients/${patientId}/storybooks`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return toFrontendStorybook(res);
+  },
+
+  async setMemories(id: string, memoryIds: string[]) {
+    const res = await apiRequest<any>(`/storybooks/${id}/memories`, {
+      method: 'POST',
+      body: JSON.stringify({ memoryIds })
+    });
+    return toFrontendStorybook(res);
+  },
+
+  async deleteStorybook(id: string) {
+    return apiRequest<{ id: string }>(`/storybooks/${id}`, { method: 'DELETE' });
+  }
+};
+
 export const routineApi = {
   async listRoutine(patientId: string) {
-    const res = await apiRequest<any[]>(`/patients/${patientId}/routine`);
-    return (res || []).map(toFrontendRoutine);
+    const res = await apiRequest<any>(`/patients/${patientId}/routine`);
+    return asList(res).map(toFrontendRoutine);
   },
 
   async createRoutineItem(patientId: string, item: Omit<RoutineItem, 'id'>) {
@@ -690,7 +758,9 @@ export const diaryApi = {
   async getDiary(patientId: string, dateStr?: string) {
     const dateQuery = dateStr ? `?date=${dateStr}` : '';
     const res = await apiRequest<any>(`/patients/${patientId}/diary${dateQuery}`);
-    return toFrontendDiary(res);
+    // This endpoint lists diary entries ({ items, ... }); use the most recent.
+    const entry = Array.isArray(res?.items) ? res.items[0] : res;
+    return toFrontendDiary(entry);
   },
 
   async saveDiary(patientId: string, diary: Partial<DiaryEntry>) {
@@ -881,5 +951,40 @@ export const mediaApi = {
     return apiRequest<{ id: string }>(`/media/${mediaId}`, {
       method: 'DELETE'
     });
+  },
+
+  // ---- Caregiver-reviewed AI image descriptions (Phase 5) ----
+  // The draft is never shown to the patient; approving it (optionally with
+  // edits) promotes it to the patient-visible caption.
+  async generateAiDescription(mediaId: string) {
+    return apiRequest<AiDescriptionMedia>(`/media/${mediaId}/ai-description`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+  },
+
+  async reviewAiDescription(mediaId: string, action: 'approve' | 'reject', text?: string) {
+    return apiRequest<AiDescriptionMedia>(`/media/${mediaId}/ai-description/review`, {
+      method: 'POST',
+      body: JSON.stringify({ action, text })
+    });
+  },
+
+  async listAiDescriptions(patientId: string, status: 'AI_SUGGESTED' | 'APPROVED' | 'REJECTED' = 'AI_SUGGESTED') {
+    const res = await apiRequest<{ items: AiDescriptionMedia[]; total: number }>(
+      `/patients/${patientId}/media/ai-descriptions?status=${status}`
+    );
+    return res.items;
   }
 };
+
+export interface AiDescriptionMedia {
+  id: string;
+  caption: string | null;
+  aiDescription: string | null;
+  aiDescriptionStatus: 'NONE' | 'AI_SUGGESTED' | 'APPROVED' | 'REJECTED';
+  aiDescriptionProvider: string | null;
+  aiDescriptionModel: string | null;
+  aiDescriptionGeneratedAt: string | null;
+  url: string | null;
+}
