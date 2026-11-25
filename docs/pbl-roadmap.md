@@ -83,11 +83,11 @@ MemoryBridge is a caregiver-governed memory recall system. Its primary contribut
 
 ### Phase 7 — Deployment and submission
 
-- [ ] Deploy frontend, API, PostgreSQL and private media storage
-- [ ] Configure production CORS, HTTPS and secrets
-- [ ] Prepare the SRS, use-case diagram, ER diagram and architecture diagram
-- [ ] Produce a test report and limitations section
-- [ ] Prepare a five-minute demonstration script and presentation
+- [ ] Deploy frontend, API, PostgreSQL and private media storage (blocked: hosting credentials)
+- [ ] Configure production CORS, HTTPS and secrets (blocked: deployment)
+- [x] Prepare the SRS (`docs/srs.md`), use-case / ER / architecture diagrams (`docs/design.md`)
+- [x] Produce a test report and limitations section (`docs/test-report.md`)
+- [x] Prepare a five-minute demonstration script (`docs/demo-script.md`)
 
 ## Demonstration flow
 
