@@ -941,5 +941,40 @@ export const mediaApi = {
     return apiRequest<{ id: string }>(`/media/${mediaId}`, {
       method: 'DELETE'
     });
+  },
+
+  // ---- Caregiver-reviewed AI image descriptions (Phase 5) ----
+  // The draft is never shown to the patient; approving it (optionally with
+  // edits) promotes it to the patient-visible caption.
+  async generateAiDescription(mediaId: string) {
+    return apiRequest<AiDescriptionMedia>(`/media/${mediaId}/ai-description`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+  },
+
+  async reviewAiDescription(mediaId: string, action: 'approve' | 'reject', text?: string) {
+    return apiRequest<AiDescriptionMedia>(`/media/${mediaId}/ai-description/review`, {
+      method: 'POST',
+      body: JSON.stringify({ action, text })
+    });
+  },
+
+  async listAiDescriptions(patientId: string, status: 'AI_SUGGESTED' | 'APPROVED' | 'REJECTED' = 'AI_SUGGESTED') {
+    const res = await apiRequest<{ items: AiDescriptionMedia[]; total: number }>(
+      `/patients/${patientId}/media/ai-descriptions?status=${status}`
+    );
+    return res.items;
   }
 };
+
+export interface AiDescriptionMedia {
+  id: string;
+  caption: string | null;
+  aiDescription: string | null;
+  aiDescriptionStatus: 'NONE' | 'AI_SUGGESTED' | 'APPROVED' | 'REJECTED';
+  aiDescriptionProvider: string | null;
+  aiDescriptionModel: string | null;
+  aiDescriptionGeneratedAt: string | null;
+  url: string | null;
+}

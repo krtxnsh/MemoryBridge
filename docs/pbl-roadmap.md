@@ -67,11 +67,11 @@ MemoryBridge is a caregiver-governed memory recall system. Its primary contribut
 
 ### Phase 5 — Caregiver-reviewed AI descriptions
 
-- [ ] Add an image-description provider interface
-- [ ] Store AI output separately from family-entered text
-- [ ] Mark generated descriptions as `AI_SUGGESTED`
-- [ ] Require caregiver editing or approval before patient visibility
-- [ ] Record provider, generation time and approver in the audit trail
+- [x] Add an image-description provider interface (`backend/src/services/vision/`: mock + OpenAI)
+- [x] Store AI output separately from family-entered text (`Media.aiDescription` vs `caption`)
+- [x] Mark generated descriptions as `AI_SUGGESTED`
+- [x] Require caregiver editing or approval before patient visibility (approval promotes to caption)
+- [x] Record provider, generation time and approver in the audit trail
 
 ### Phase 6 — Accessibility and end-to-end validation
 

@@ -96,7 +96,45 @@ router.delete(
   (req, res, next) => mediaController.deleteMedia(req, res).catch(next)
 );
 
-// 7. GET /memories/:memoryId/media
+// 7. POST /media/:id/ai-description  — generate a draft AI description (caregiver+)
+router.post(
+  '/media/:id/ai-description',
+  authenticate,
+  validateUuidParams('id'),
+  writeRateLimiter,
+  requirePatientAccess(AccessRole.CAREGIVER, resolvePatientFromMedia, {
+    notFoundCode: 'MEDIA_NOT_FOUND',
+    notFoundMessage: 'Media resource not found.'
+  }),
+  (req, res, next) => mediaController.generateAiDescription(req, res).catch(next)
+);
+
+// 8. POST /media/:id/ai-description/review — approve (with edits) or reject (caregiver+)
+router.post(
+  '/media/:id/ai-description/review',
+  authenticate,
+  validateUuidParams('id'),
+  writeRateLimiter,
+  requirePatientAccess(AccessRole.CAREGIVER, resolvePatientFromMedia, {
+    notFoundCode: 'MEDIA_NOT_FOUND',
+    notFoundMessage: 'Media resource not found.'
+  }),
+  (req, res, next) => mediaController.reviewAiDescription(req, res).catch(next)
+);
+
+// 9. GET /patients/:patientId/media/ai-descriptions — caregiver review queue
+router.get(
+  '/patients/:patientId/media/ai-descriptions',
+  authenticate,
+  validateUuidParams('patientId'),
+  requirePatientAccess(AccessRole.CAREGIVER, undefined, {
+    notFoundCode: 'PATIENT_NOT_FOUND',
+    notFoundMessage: 'Patient resource not found.'
+  }),
+  (req, res, next) => mediaController.listAiDescriptions(req, res).catch(next)
+);
+
+// 10. GET /memories/:memoryId/media
 router.get(
   '/memories/:memoryId/media',
   authenticate,

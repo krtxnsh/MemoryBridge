@@ -56,6 +56,15 @@ export const envSchema = z
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
     LLM_MAX_TOKENS: z.coerce.number().int().positive().default(320),
 
+    // Caregiver-reviewed AI image descriptions. Output is always stored as
+    // AI_SUGGESTED and gated behind caregiver approval before patient visibility.
+    // Remote provider keys are backend-only.
+    IMAGE_DESCRIPTION_PROVIDER: z.enum(['none', 'mock', 'openai']).default('none'),
+    IMAGE_DESCRIPTION_API_KEY: z.string().optional().default(''),
+    IMAGE_DESCRIPTION_MODEL: z.string().optional().default(''),
+    IMAGE_DESCRIPTION_BASE_URL: z.string().optional().default(''),
+    IMAGE_DESCRIPTION_TIMEOUT_MS: z.coerce.number().int().positive().default(12000),
+
     EMBEDDING_PROVIDER: z.enum(['local_semantic']).default('local_semantic'),
     MEMORY_RETRIEVAL_THRESHOLD: z.coerce.number().min(0).max(1).default(0.24),
     MEMORY_RETRIEVAL_MIN_COVERAGE: z.coerce.number().min(0).max(1).default(0.34)

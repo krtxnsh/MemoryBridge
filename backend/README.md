@@ -23,7 +23,12 @@ Secure, modular REST backend for MemoryBridge.
   - Providers: `none` (rule-based), `mock` (offline), `openai`, `anthropic`. Keys are
     backend-only via `LLM_API_KEY`; remote calls use timeouts with graceful fallback.
   - Every answer reports `answerSource` + `supportingMemoryId` for traceability.
-- **Comprehensive Test Suite**: 133 automated tests across 8 test suites.
+- **Caregiver-reviewed AI image descriptions**:
+  - Provider-independent vision layer (`src/services/vision/`): `none` | `mock` | `openai`.
+  - AI output stored in `Media.aiDescription` separately from the family `caption`,
+    marked `AI_SUGGESTED`, and **never patient-visible until a caregiver approves it**
+    (approval promotes the reviewed text to the caption; provider/time/approver audited).
+- **Comprehensive Test Suite**: 143 automated tests across 9 test suites.
 
 ## Available Scripts
 

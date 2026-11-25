@@ -30,8 +30,19 @@ export const listMediaQuerySchema = z.object({
   mediaType: z.enum(['IMAGE', 'VIDEO', 'AUDIO']).optional()
 });
 
+export const reviewAiDescriptionSchema = z.object({
+  action: z.enum(['approve', 'reject']),
+  // Optional caregiver edit applied on approval; falls back to the AI draft.
+  text: z.string().trim().max(2000).optional()
+});
+
+export const listAiDescriptionsQuerySchema = z.object({
+  status: z.enum(['NONE', 'AI_SUGGESTED', 'APPROVED', 'REJECTED']).optional()
+});
+
 export type CreateUploadUrlInput = z.infer<typeof createUploadUrlSchema>;
 export type ConfirmUploadInput = z.infer<typeof confirmUploadSchema>;
 export type UpdateMediaInput = z.infer<typeof updateMediaSchema>;
 export type ListMediaQueryInput = z.infer<typeof listMediaQuerySchema>;
+export type ReviewAiDescriptionInput = z.infer<typeof reviewAiDescriptionSchema>;
 

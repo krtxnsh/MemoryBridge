@@ -2,6 +2,7 @@ import path from 'path';
 import crypto from 'crypto';
 import {
   AccessRole,
+  AiDescriptionStatus,
   MediaType,
   MediaUploadPurpose,
   MediaUploadStatus,
@@ -18,6 +19,7 @@ import {
   verifyFileSignature,
   sanitizeFileName
 } from '../utils/media-sniffer';
+import { getImageDescriptionProvider, imageDescriptionTimeoutMs, ImageDescriptionError } from './vision';
 import {
   CreateUploadUrlInput,
   ConfirmUploadInput,
@@ -49,6 +51,231 @@ export class MediaService {
       uploadedBy: media.uploadedBy,
       createdAt: media.createdAt,
       url
+    };
+  }
+
+  /**
+   * Caregiver/owner-only serialization that additionally exposes the AI
+   * description workflow fields. Never used for patient/viewer/family responses,
+   * so unapproved AI text can never leak to a patient.
+   */
+  async formatMediaForCaregiver(media: any) {
+    const base = await this.formatMedia(media);
+    return {
+      ...base,
+      aiDescription: media.aiDescription,
+      aiDescriptionStatus: media.aiDescriptionStatus,
+      aiDescriptionProvider: media.aiDescriptionProvider,
+      aiDescriptionModel: media.aiDescriptionModel,
+      aiDescriptionGeneratedAt: media.aiDescriptionGeneratedAt,
+      aiDescriptionApprovedById: media.aiDescriptionApprovedById,
+      aiDescriptionApprovedAt: media.aiDescriptionApprovedAt
+    };
+  }
+
+  private assertCaregiverCanManage(
+    accessRole: AccessRole | undefined,
+    isPatientSession: boolean
+  ): void {
+    if (
+      isPatientSession ||
+      (accessRole !== AccessRole.OWNER && accessRole !== AccessRole.CAREGIVER)
+    ) {
+      // 404 (not 403) to avoid resource enumeration, matching the rest of the API.
+      throw new AppError('MEDIA_NOT_FOUND', 'Media not found.', 404);
+    }
+  }
+
+  /**
+   * Generate a DRAFT AI description for a media item. Caregiver/owner only.
+   * The result is stored in `aiDescription` as AI_SUGGESTED (separate from the
+   * family-entered `caption`) and is NOT visible to the patient until approved.
+   */
+  async generateAiDescription(
+    mediaId: string,
+    userId: string,
+    accessRole: AccessRole | undefined,
+    isPatientSession: boolean
+  ) {
+    this.assertCaregiverCanManage(accessRole, isPatientSession);
+
+    const media = await prisma.media.findFirst({
+      where: { id: mediaId, deletedAt: null },
+      include: {
+        memory: { include: { people: { include: { person: true } } } }
+      }
+    });
+    if (!media) {
+      throw new AppError('MEDIA_NOT_FOUND', 'Media not found.', 404);
+    }
+    if (media.mediaType !== MediaType.IMAGE) {
+      throw new AppError('UNSUPPORTED_MEDIA_TYPE', 'AI descriptions are only available for images.', 400);
+    }
+
+    const provider = getImageDescriptionProvider();
+    if (!provider) {
+      throw new AppError(
+        'AI_DESCRIPTION_UNAVAILABLE',
+        'AI image descriptions are not configured on this server.',
+        503
+      );
+    }
+
+    // Short-lived signed URL so a remote vision model can read the private image.
+    let imageUrl: string | undefined;
+    try {
+      imageUrl = await storage.createReadUrl(media.storagePath, env.MEDIA_READ_URL_TTL_SEC);
+    } catch {
+      imageUrl = undefined;
+    }
+
+    let result;
+    try {
+      result = await provider.describe(
+        {
+          imageUrl,
+          mimeType: media.mimeType,
+          memoryTitle: media.memory?.title,
+          location: media.memory?.location,
+          approximateYear: media.memory?.approximateYear,
+          peopleNames: (media.memory?.people || []).map((p: any) => p.person.fullName),
+          familyCaption: media.caption
+        },
+        imageDescriptionTimeoutMs()
+      );
+    } catch (err) {
+      const code = err instanceof ImageDescriptionError ? err.code : 'AI_DESCRIPTION_FAILED';
+      throw new AppError(code, `Could not generate an AI description: ${(err as Error).message}`, 502);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const m = await tx.media.update({
+        where: { id: mediaId },
+        data: {
+          aiDescription: result.text,
+          aiDescriptionStatus: AiDescriptionStatus.AI_SUGGESTED,
+          aiDescriptionProvider: result.provider,
+          aiDescriptionModel: result.model,
+          aiDescriptionGeneratedAt: new Date(),
+          // A fresh draft clears any previous approval.
+          aiDescriptionApprovedById: null,
+          aiDescriptionApprovedAt: null
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          patientId: media.patientId,
+          actorId: userId,
+          action: 'MEDIA_AI_DESCRIBE',
+          resourceType: 'Media',
+          resourceId: mediaId,
+          metadata: { provider: result.provider, model: result.model, status: AiDescriptionStatus.AI_SUGGESTED }
+        }
+      });
+
+      return m;
+    });
+
+    return this.formatMediaForCaregiver(updated);
+  }
+
+  /**
+   * Approve (optionally with edits) or reject an AI description. Caregiver/owner
+   * only. Approval promotes the reviewed text to the patient-visible `caption`
+   * and records the approver and time; rejection discards it. This caregiver
+   * approval IS the gate that makes any AI-originated text patient-visible.
+   */
+  async reviewAiDescription(
+    mediaId: string,
+    userId: string,
+    accessRole: AccessRole | undefined,
+    isPatientSession: boolean,
+    input: { action: 'approve' | 'reject'; text?: string }
+  ) {
+    this.assertCaregiverCanManage(accessRole, isPatientSession);
+
+    const media = await prisma.media.findFirst({
+      where: { id: mediaId, deletedAt: null }
+    });
+    if (!media) {
+      throw new AppError('MEDIA_NOT_FOUND', 'Media not found.', 404);
+    }
+    if (media.aiDescriptionStatus !== AiDescriptionStatus.AI_SUGGESTED) {
+      throw new AppError(
+        'NO_PENDING_AI_DESCRIPTION',
+        'There is no AI-suggested description awaiting review for this media.',
+        400
+      );
+    }
+
+    const isApprove = input.action === 'approve';
+    const approvedText = (input.text ?? media.aiDescription ?? '').trim();
+    if (isApprove && !approvedText) {
+      throw new AppError('EMPTY_DESCRIPTION', 'An approved description cannot be empty.', 400);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const m = await tx.media.update({
+        where: { id: mediaId },
+        data: isApprove
+          ? {
+              // The approved text becomes the family-visible caption.
+              caption: approvedText,
+              aiDescription: approvedText,
+              aiDescriptionStatus: AiDescriptionStatus.APPROVED,
+              aiDescriptionApprovedById: userId,
+              aiDescriptionApprovedAt: new Date()
+            }
+          : {
+              aiDescriptionStatus: AiDescriptionStatus.REJECTED,
+              aiDescriptionApprovedById: null,
+              aiDescriptionApprovedAt: null
+            }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          patientId: media.patientId,
+          actorId: userId,
+          action: isApprove ? 'MEDIA_AI_DESCRIPTION_APPROVE' : 'MEDIA_AI_DESCRIPTION_REJECT',
+          resourceType: 'Media',
+          resourceId: mediaId,
+          metadata: {
+            provider: media.aiDescriptionProvider,
+            model: media.aiDescriptionModel,
+            approvedById: isApprove ? userId : null,
+            edited: isApprove ? approvedText !== (media.aiDescription ?? '').trim() : undefined
+          }
+        }
+      });
+
+      return m;
+    });
+
+    return this.formatMediaForCaregiver(updated);
+  }
+
+  /**
+   * List media with a pending (or given status) AI description. Caregiver/owner
+   * only — this is the caregiver review queue for AI-suggested captions.
+   */
+  async listAiDescriptions(
+    patientId: string,
+    accessRole: AccessRole | undefined,
+    isPatientSession: boolean,
+    status: AiDescriptionStatus = AiDescriptionStatus.AI_SUGGESTED
+  ) {
+    this.assertCaregiverCanManage(accessRole, isPatientSession);
+
+    const items = await prisma.media.findMany({
+      where: { patientId, deletedAt: null, aiDescriptionStatus: status },
+      orderBy: { aiDescriptionGeneratedAt: 'desc' }
+    });
+
+    return {
+      items: await Promise.all(items.map((m) => this.formatMediaForCaregiver(m))),
+      total: items.length
     };
   }
 

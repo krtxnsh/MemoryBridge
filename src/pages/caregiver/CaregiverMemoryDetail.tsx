@@ -2,19 +2,140 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../store/AppContext';
 import { speechService } from '../../services';
-import { 
-  ArrowLeft, 
-  Volume2, 
-  VolumeX, 
-  ShieldCheck, 
-  AlertCircle, 
-  MapPin, 
-  Calendar, 
-  Users, 
-  MessageCircleHeart, 
+import { mediaApi, AiDescriptionMedia } from '../../api/client';
+import {
+  ArrowLeft,
+  Volume2,
+  VolumeX,
+  ShieldCheck,
+  AlertCircle,
+  MapPin,
+  Calendar,
+  Users,
+  MessageCircleHeart,
   Music,
-  Share2
+  Sparkles,
+  Check,
+  X,
+  Loader2
 } from 'lucide-react';
+
+/**
+ * Caregiver-only assistant that drafts an AI description for a photo and gates
+ * it behind caregiver approval. Nothing here is visible to the patient until the
+ * caregiver approves it (which promotes the text to the photo's caption).
+ */
+const AiDescriptionAssistant: React.FC<{ mediaId: string; caption?: string }> = ({ mediaId, caption }) => {
+  const { showToast } = useApp();
+  const [draft, setDraft] = useState<string | null>(null);
+  const [text, setText] = useState('');
+  const [status, setStatus] = useState<AiDescriptionMedia['aiDescriptionStatus']>('NONE');
+  const [busy, setBusy] = useState(false);
+  const [approvedCaption, setApprovedCaption] = useState<string | null>(null);
+
+  const generate = async () => {
+    setBusy(true);
+    try {
+      const m = await mediaApi.generateAiDescription(mediaId);
+      setDraft(m.aiDescription || '');
+      setText(m.aiDescription || '');
+      setStatus(m.aiDescriptionStatus);
+    } catch (err: any) {
+      if (err?.statusCode === 503) {
+        showToast('AI descriptions are not configured on the server yet.', 'amber');
+      } else {
+        showToast(`Could not generate a description: ${err.message}`, 'amber');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const review = async (action: 'approve' | 'reject') => {
+    setBusy(true);
+    try {
+      const m = await mediaApi.reviewAiDescription(mediaId, action, action === 'approve' ? text : undefined);
+      setStatus(m.aiDescriptionStatus);
+      if (action === 'approve') {
+        setApprovedCaption(m.caption || text);
+        setDraft(null);
+        showToast('Description approved — it is now visible to the patient.', 'success');
+      } else {
+        setDraft(null);
+        showToast('AI description discarded.', 'info');
+      }
+    } catch (err: any) {
+      showToast(`Could not ${action} the description: ${err.message}`, 'amber');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="p-4 rounded-2xl bg-[#FBF7FF] border border-[#E6D9F5]">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="font-bold text-ink-primary text-sm flex items-center gap-1.5">
+          <Sparkles className="w-4 h-4 text-primary" />
+          <span>AI description assistant</span>
+        </h4>
+        {!draft && (
+          <button
+            onClick={generate}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-sm disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            <span>Suggest a description</span>
+          </button>
+        )}
+      </div>
+
+      <p className="text-[11px] text-ink-secondary mt-1">
+        AI suggestions are drafts. They are never shown to the patient until you review and approve them.
+      </p>
+
+      {approvedCaption && !draft && (
+        <p className="text-xs text-[#327A55] mt-2 flex items-center gap-1.5">
+          <Check className="w-3.5 h-3.5" />
+          <span>Approved and visible to the patient: “{approvedCaption}”</span>
+        </p>
+      )}
+
+      {draft !== null && status === 'AI_SUGGESTED' && (
+        <div className="mt-3 flex flex-col gap-2">
+          <textarea
+            rows={3}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="w-full p-2.5 rounded-xl bg-white border border-[#E6D9F5] text-sm text-ink-primary focus:border-primary outline-none"
+          />
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => review('reject')}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-surface-border text-ink-secondary text-xs font-semibold hover:bg-warm-cream disabled:opacity-50"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Discard</span>
+            </button>
+            <button
+              onClick={() => review('approve')}
+              disabled={busy || !text.trim()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#327A55] hover:bg-[#2b6848] text-white text-xs font-semibold disabled:opacity-50"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Approve for patient</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {caption && !approvedCaption && draft === null && (
+        <p className="text-[11px] text-ink-secondary mt-2">Current caption: “{caption}”</p>
+      )}
+    </div>
+  );
+};
 
 export const CaregiverMemoryDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -78,6 +199,13 @@ export const CaregiverMemoryDetail: React.FC = () => {
             {memory.year} · {memory.era}
           </div>
         </div>
+
+        {/* AI description assistant for each persisted photo (caregiver-gated) */}
+        {memory.media
+          .filter(m => m.type === 'image' && !m.id.startsWith('med-'))
+          .map(m => (
+            <AiDescriptionAssistant key={m.id} mediaId={m.id} caption={m.caption} />
+          ))}
 
         {/* Title & Metadata */}
         <div>

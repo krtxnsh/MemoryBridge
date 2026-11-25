@@ -89,6 +89,16 @@ enum MediaUploadStatus {
   FAILED
 }
 
+// Lifecycle of a caregiver-reviewed AI image description. AI output is stored
+// separately from family-entered text and is never patient-visible until a
+// caregiver edits/approves it.
+enum AiDescriptionStatus {
+  NONE
+  AI_SUGGESTED
+  APPROVED
+  REJECTED
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -389,6 +399,15 @@ model Media {
   sizeBytes     Int
   caption       String?
   uploadedBy    String
+  // Caregiver-reviewed AI image description (stored separately from the
+  // family-entered `caption`; never shown to a patient until APPROVED).
+  aiDescription            String?
+  aiDescriptionStatus      AiDescriptionStatus @default(NONE)
+  aiDescriptionProvider    String?
+  aiDescriptionModel       String?
+  aiDescriptionGeneratedAt DateTime?
+  aiDescriptionApprovedById String?
+  aiDescriptionApprovedAt  DateTime?
   deletedAt     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
