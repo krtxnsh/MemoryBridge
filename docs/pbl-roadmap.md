@@ -79,7 +79,7 @@ MemoryBridge is a caregiver-governed memory recall system. Its primary contribut
 - [x] Add transcript confirmation before a voice question is submitted
 - [x] Add reduced-motion and high-contrast preferences (toggles + persisted; browser-verified)
 - [x] Add Playwright flows (caregiver demo, verified-memory load, companion recall, safe fallback, persistence, auth guard) in `e2e/`
-- [ ] Run Lighthouse accessibility checks on desktop and tablet layouts
+- [x] Run Lighthouse + axe accessibility checks; fixes applied (`docs/accessibility-audit.md`)
 
 ### Phase 7 — Deployment and submission
 

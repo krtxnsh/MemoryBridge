@@ -244,6 +244,7 @@ export const CaregiverLibrary: React.FC = () => {
           <select
             value={selectedPerson}
             onChange={(e) => setSelectedPerson(e.target.value)}
+            aria-label="Filter memories by person"
             className="px-3 py-2 rounded-xl bg-warm-cream border border-surface-border text-xs text-ink-primary font-medium focus:outline-none"
           >
             <option value="all">All People</option>
@@ -256,6 +257,7 @@ export const CaregiverLibrary: React.FC = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
+            aria-label="Filter memories by verification status"
             className="px-3 py-2 rounded-xl bg-warm-cream border border-surface-border text-xs text-ink-primary font-medium focus:outline-none"
           >
             <option value="all">All Verification Statuses</option>

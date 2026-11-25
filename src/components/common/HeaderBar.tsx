@@ -60,9 +60,10 @@ export const HeaderBar: React.FC = () => {
           <nav className="flex items-center gap-1.5 sm:gap-2 bg-warm-cream/80 p-1 rounded-2xl border border-warm-sand" aria-label="Mode Navigation">
             <Link
               to="/"
+              aria-label="Overview"
               className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center gap-1.5 ${
-                isLanding 
-                  ? 'bg-white text-ink-primary shadow-soft font-semibold' 
+                isLanding
+                  ? 'bg-white text-ink-primary shadow-soft font-semibold'
                   : 'text-ink-secondary hover:text-ink-primary'
               }`}
             >

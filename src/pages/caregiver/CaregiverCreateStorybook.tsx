@@ -405,6 +405,7 @@ export const CaregiverCreateStorybook: React.FC = () => {
                 <select
                   value={selectedAlbumId}
                   onChange={(e) => setSelectedAlbumId(e.target.value)}
+                  aria-label="Album or category"
                   className="w-full p-3 rounded-xl bg-warm-cream border border-surface-border text-sm font-semibold text-ink-primary focus:border-primary outline-none"
                 >
                   {albums.map(a => (

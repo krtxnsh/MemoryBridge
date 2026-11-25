@@ -37,8 +37,8 @@ export default {
         },
         ink: {
           primary: '#292521',
-          secondary: '#77716B',
-          muted: '#A29C95',
+          secondary: '#6B655F', // AA on warm white & cream (was #77716B, failed on cream)
+          muted: '#787168',     // darkened for contrast (was #A29C95)
         },
         status: {
           success: '#327A55',

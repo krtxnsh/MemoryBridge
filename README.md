@@ -179,6 +179,7 @@ npm run test:e2e  # real-browser end-to-end flow (boots DB/API/web; see e2e/READ
 - [`docs/srs.md`](docs/srs.md) — Software Requirements Specification
 - [`docs/design.md`](docs/design.md) — architecture, ER and use-case diagrams, companion data flow
 - [`docs/test-report.md`](docs/test-report.md) — verified test results and limitations
+- [`docs/accessibility-audit.md`](docs/accessibility-audit.md) — Lighthouse + axe accessibility audit
 - [`docs/demo-script.md`](docs/demo-script.md) — 5-minute demonstration script
 - [`docs/pbl-roadmap.md`](docs/pbl-roadmap.md) — delivery roadmap and status
 - [`e2e/README.md`](e2e/README.md) — end-to-end test details
