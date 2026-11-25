@@ -81,6 +81,10 @@ interface AppContextType {
   setTextSize: (size: TextSize) => void;
   voiceEnabled: boolean;
   setVoiceEnabled: (enabled: boolean) => void;
+  highContrast: boolean;
+  setHighContrast: (enabled: boolean) => void;
+  reduceMotion: boolean;
+  setReduceMotion: (enabled: boolean) => void;
   
   // Audio state
   activeSong: Song | null;
@@ -133,8 +137,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const patientName = activePatient?.fullName?.split(' ')[0] || 'Rajiv';
 
   // Accessibility & audio preferences
+  const readPref = (key: string) => {
+    try {
+      return localStorage.getItem(key) === '1';
+    } catch {
+      return false;
+    }
+  };
+  const writePref = (key: string, value: boolean) => {
+    try {
+      localStorage.setItem(key, value ? '1' : '0');
+    } catch {
+      /* storage unavailable (private mode) — preference is still applied in-memory */
+    }
+  };
+
   const [textSize, setTextSize] = useState<TextSize>('normal');
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
+  const [highContrast, setHighContrastState] = useState<boolean>(() => readPref('mb_high_contrast'));
+  const [reduceMotion, setReduceMotionState] = useState<boolean>(() => readPref('mb_reduce_motion'));
+
+  const setHighContrast = useCallback((enabled: boolean) => {
+    setHighContrastState(enabled);
+    writePref('mb_high_contrast', enabled);
+  }, []);
+  const setReduceMotion = useCallback((enabled: boolean) => {
+    setReduceMotionState(enabled);
+    writePref('mb_reduce_motion', enabled);
+  }, []);
+
+  // Reflect accessibility preferences on the document root so global CSS can
+  // apply high-contrast and reduced-motion overrides.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const el = document.documentElement;
+    el.setAttribute('data-contrast', highContrast ? 'high' : 'normal');
+    el.setAttribute('data-motion', reduceMotion ? 'reduced' : 'normal');
+  }, [highContrast, reduceMotion]);
   const [activeSong, setActiveSong] = useState<Song | null>(null);
   const [isPlayingMusic, setIsPlayingMusic] = useState<boolean>(false);
 
@@ -714,6 +753,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setTextSize,
         voiceEnabled,
         setVoiceEnabled,
+        highContrast,
+        setHighContrast,
+        reduceMotion,
+        setReduceMotion,
 
         // Audio
         activeSong,

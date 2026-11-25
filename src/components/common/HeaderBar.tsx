@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../store/AppContext';
-import { Volume2, VolumeX, Type, Music, ShieldCheck, HeartHandshake, Home, LogIn, LogOut, User } from 'lucide-react';
+import { Volume2, VolumeX, Type, Contrast, Music, ShieldCheck, HeartHandshake, Home, LogIn, LogOut, User } from 'lucide-react';
 import { LoginModal } from './LoginModal';
 
 export const HeaderBar: React.FC = () => {
@@ -12,10 +12,12 @@ export const HeaderBar: React.FC = () => {
     currentUser,
     isLoggedIn,
     logout,
-    textSize, 
-    setTextSize, 
-    voiceEnabled, 
-    setVoiceEnabled, 
+    textSize,
+    setTextSize,
+    voiceEnabled,
+    setVoiceEnabled,
+    highContrast,
+    setHighContrast,
     activeSong, 
     isPlayingMusic, 
     pauseSong, 
@@ -118,6 +120,21 @@ export const HeaderBar: React.FC = () => {
             >
               <Type className="w-4 h-4 text-primary" />
               <span className="uppercase font-bold text-[10px] hidden sm:inline">{textSize === 'normal' ? 'A' : textSize === 'large' ? 'A+' : 'A++'}</span>
+            </button>
+
+            {/* High-contrast toggle */}
+            <button
+              onClick={() => setHighContrast(!highContrast)}
+              aria-pressed={highContrast}
+              className={`p-2 rounded-xl border transition-colors ${
+                highContrast
+                  ? 'bg-ink-primary text-white border-ink-primary'
+                  : 'bg-warm-cream text-ink-secondary hover:text-ink-primary border-surface-border'
+              }`}
+              title={highContrast ? 'High contrast on' : 'Turn on high contrast'}
+              aria-label={highContrast ? 'Turn off high contrast' : 'Turn on high contrast'}
+            >
+              <Contrast className="w-4 h-4" />
             </button>
 
             {/* Voice toggle */}

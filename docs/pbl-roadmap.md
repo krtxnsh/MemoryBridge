@@ -75,9 +75,9 @@ MemoryBridge is a caregiver-governed memory recall system. Its primary contribut
 
 ### Phase 6 — Accessibility and end-to-end validation
 
-- [ ] Reduce the patient home screen to four primary actions
-- [ ] Add transcript confirmation before a voice question is submitted
-- [ ] Add reduced-motion and high-contrast preferences
+- [x] Reduce the patient home screen to four primary actions (secondary actions demoted)
+- [x] Add transcript confirmation before a voice question is submitted
+- [x] Add reduced-motion and high-contrast preferences (toggles + persisted; browser-verified)
 - [ ] Add Playwright flows for invitation, verification and companion recall
 - [ ] Run Lighthouse accessibility checks on desktop and tablet layouts
 

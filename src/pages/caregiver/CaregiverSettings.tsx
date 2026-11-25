@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useApp } from '../../store/AppContext';
-import { 
-  Settings as SettingsIcon, 
-  RotateCcw, 
-  Volume2, 
-  Type, 
-  User, 
-  Bell, 
-  ShieldCheck, 
-  CheckCircle2 
+import {
+  Settings as SettingsIcon,
+  RotateCcw,
+  Volume2,
+  Type,
+  User,
+  Bell,
+  ShieldCheck,
+  CheckCircle2,
+  Contrast,
+  Accessibility
 } from 'lucide-react';
 
 export const CaregiverSettings: React.FC = () => {
@@ -16,9 +18,13 @@ export const CaregiverSettings: React.FC = () => {
     patientName, 
     textSize, 
     setTextSize, 
-    voiceEnabled, 
-    setVoiceEnabled, 
-    resetDemoData 
+    voiceEnabled,
+    setVoiceEnabled,
+    highContrast,
+    setHighContrast,
+    reduceMotion,
+    setReduceMotion,
+    resetDemoData
   } = useApp();
 
   const [confirmReset, setConfirmReset] = useState(false);
@@ -106,6 +112,50 @@ export const CaregiverSettings: React.FC = () => {
               type="checkbox"
               checked={voiceEnabled}
               onChange={(e) => setVoiceEnabled(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-12 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+          </label>
+        </div>
+
+        {/* High Contrast */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-surface-border">
+          <div>
+            <h3 className="font-serif text-lg font-bold text-ink-primary flex items-center gap-2">
+              <Contrast className="w-5 h-5 text-primary" />
+              <span>High Contrast Mode</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-ink-secondary mt-0.5">
+              Darkens text and strengthens borders for easier reading with low vision.
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={highContrast}
+              onChange={(e) => setHighContrast(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-12 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+          </label>
+        </div>
+
+        {/* Reduce Motion */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-surface-border">
+          <div>
+            <h3 className="font-serif text-lg font-bold text-ink-primary flex items-center gap-2">
+              <Accessibility className="w-5 h-5 text-primary" />
+              <span>Reduce Motion</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-ink-secondary mt-0.5">
+              Minimises animations and transitions, which can be calmer and less disorienting.
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={reduceMotion}
+              onChange={(e) => setReduceMotion(e.target.checked)}
               className="sr-only peer"
             />
             <div className="w-12 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-5 after:transition-all peer-checked:bg-primary"></div>
