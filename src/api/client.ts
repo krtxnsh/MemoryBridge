@@ -647,10 +647,18 @@ export const personApi = {
   }
 };
 
+// The backend paginates list endpoints as { items, page, pageSize, total }.
+// Some older callers assumed a bare array; normalize both shapes here.
+function asList<T = any>(res: any): T[] {
+  if (Array.isArray(res)) return res;
+  if (res && Array.isArray(res.items)) return res.items;
+  return [];
+}
+
 export const albumApi = {
   async listAlbums(patientId: string) {
-    const res = await apiRequest<any[]>(`/patients/${patientId}/albums`);
-    return (res || []).map(toFrontendAlbum);
+    const res = await apiRequest<any>(`/patients/${patientId}/albums`);
+    return asList(res).map(toFrontendAlbum);
   },
 
   async createAlbum(patientId: string, album: Omit<Album, 'id'>) {
@@ -712,8 +720,8 @@ export const storybookApi = {
 
 export const routineApi = {
   async listRoutine(patientId: string) {
-    const res = await apiRequest<any[]>(`/patients/${patientId}/routine`);
-    return (res || []).map(toFrontendRoutine);
+    const res = await apiRequest<any>(`/patients/${patientId}/routine`);
+    return asList(res).map(toFrontendRoutine);
   },
 
   async createRoutineItem(patientId: string, item: Omit<RoutineItem, 'id'>) {
@@ -750,7 +758,9 @@ export const diaryApi = {
   async getDiary(patientId: string, dateStr?: string) {
     const dateQuery = dateStr ? `?date=${dateStr}` : '';
     const res = await apiRequest<any>(`/patients/${patientId}/diary${dateQuery}`);
-    return toFrontendDiary(res);
+    // This endpoint lists diary entries ({ items, ... }); use the most recent.
+    const entry = Array.isArray(res?.items) ? res.items[0] : res;
+    return toFrontendDiary(entry);
   },
 
   async saveDiary(patientId: string, diary: Partial<DiaryEntry>) {
