@@ -141,12 +141,18 @@ grounded reply on any error. See `backend/.env.example` for all options.
 
 ```bash
 cd backend
-cp .env.example .env            # set DATABASE_URL + JWT secrets (see file)
+cp .env.example .env            # defaults already match the Docker DB below
+docker compose up -d            # starts PostgreSQL on :5432 (or use your own)
 npm install
 npx prisma migrate deploy       # apply migrations
 npx prisma generate
-npm run dev                      # API on http://localhost:4000
+npx tsx prisma/seed.ts          # seed the "Rajiv" demo workspace
+LLM_PROVIDER=mock npm run dev    # API on http://localhost:4000 (grounded companion, no keys)
 ```
+
+The `.env.example` `DATABASE_URL` matches `docker-compose.yml`
+(`postgres` / `postgres`), so no edits are needed when using Docker. Using your
+own PostgreSQL? Point `DATABASE_URL` at it instead and skip `docker compose`.
 
 **Frontend (React + Vite):**
 
@@ -154,6 +160,9 @@ npm run dev                      # API on http://localhost:4000
 npm install
 npm run dev                      # app on http://127.0.0.1:5173 (proxies /api -> backend)
 ```
+
+Then open **http://127.0.0.1:5173** and click **Try Patient Demo** /
+**Try Caregiver Demo** (or sign in as `anita@example.com` / `Password123!`).
 
 - Navigate to `/` for the Public Landing Page.
 - Navigate to `/patient` for the Tablet Companion Experience.
