@@ -67,20 +67,20 @@ async function waitForText(page, needle, timeout = 15000) {
 
     // 3. Verified memories load from the backend into the library
     await page.goto(`${BASE}/family/library`, { waitUntil: 'networkidle' });
-    await waitForText(page, 'red bicycle', 20000);
-    check('Seeded verified memory "Red Bicycle" loads in the library', true);
+    await waitForText(page, 'coffee', 20000);
+    check('Seeded verified memory loads in the library (coffee)', true);
     await shot(page, '03-library.png');
 
     // 4. Companion recall of a verified memory (patient companion screen)
     await page.goto(`${BASE}/patient/companion`, { waitUntil: 'networkidle' });
     const input = page.locator('input[placeholder*="ask a question" i]');
     await input.waitFor({ timeout: 15000 });
-    await input.fill('Tell me about the red bicycle');
+    await input.fill('Tell me about the morning filter coffee');
     await page.getByRole('button', { name: /Send message/i }).click();
-    await waitForText(page, 'bicycle', 20000);
+    await waitForText(page, 'coffee', 20000);
     const recallText = await bodyText(page);
     const grounded =
-      recallText.includes('bicycle') && !recallText.includes("don't have that memory");
+      recallText.includes('coffee') && !recallText.includes("don't have that memory");
     check('Companion recalls the verified memory (grounded answer)', grounded);
     await shot(page, '04-companion-recall.png');
 
@@ -96,7 +96,7 @@ async function waitForText(page, needle, timeout = 15000) {
     await page.reload({ waitUntil: 'networkidle' });
     let persisted = false;
     try {
-      await waitForText(page, 'red bicycle', 15000);
+      await waitForText(page, 'coffee', 15000);
       persisted = !page.url().endsWith('/');
     } catch {
       persisted = false;
@@ -113,7 +113,7 @@ async function waitForText(page, needle, timeout = 15000) {
     const anonBody = (await anonPage.evaluate(() => document.body.innerText)).toLowerCase();
     check(
       'Signed-out user is redirected away from caregiver pages',
-      redirected && !anonBody.includes('red bicycle'),
+      redirected && !anonBody.includes('coffee'),
       anonPage.url()
     );
     await anon.close();

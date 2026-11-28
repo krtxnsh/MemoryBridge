@@ -4,6 +4,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { formatDisplayTime } from './routine.service.js';
 import { embeddingService } from './embedding.service.js';
 import { generateGroundedReply, getLlmProvider } from './llm/index.js';
+import { buildNarration } from './narration.service.js';
 
 const UNKNOWN_MEMORY_REPLY =
   "I don't have that memory in your family storybook yet. Perhaps someone in your family can tell us more.";
@@ -79,6 +80,16 @@ export class CompanionService {
 
     const firstName = patient.fullName.split(' ')[0] || patient.fullName;
     const lowerText = text.toLowerCase();
+
+    // 0. Life-story narration intent ("tell me my life story", "about my
+    // childhood", "about my mother"). Retrieves verified memories for the scope,
+    // sorts them chronologically, follows curated related-memory links, and
+    // narrates — grounded, never inventing. If the scope has no verified memory
+    // it returns the exact safe fallback without calling the LLM.
+    const narration = await buildNarration(patientId, text, firstName);
+    if (narration) {
+      return this.finishNarration(patientId, text, narration, actor);
+    }
 
     // 1. Search only VERIFIED memories inside the active patient workspace.
     const [retrievedMemories, promptMemories] = await Promise.all([
@@ -292,6 +303,105 @@ export class CompanionService {
           : answerSource === 'llm'
             ? `Answer phrased by the ${llmMeta?.provider} LLM strictly from verified memory facts (grounded, no invention).`
             : 'Deterministic companion grounded by verified semantic memory retrieval.'
+    };
+  }
+
+  private serializeMemory(m: any) {
+    return {
+      id: m.id,
+      title: m.title,
+      description: m.description,
+      story: m.story,
+      eventDate: m.eventDate,
+      approximateYear: m.approximateYear,
+      location: m.location,
+      era: m.era,
+      verificationStatus: m.verificationStatus,
+      album: m.album || null,
+      people: (m.people || []).map((p: any) => ({
+        id: p.person.id,
+        fullName: p.person.fullName,
+        profileImage: p.person.profileImage
+      })),
+      retrievalScore: null,
+      media: (m.media || []).map((med: any) => ({
+        id: med.id,
+        mediaType: med.mediaType,
+        fileName: med.fileName,
+        mimeType: med.mimeType,
+        caption: med.caption,
+        url: null
+      }))
+    };
+  }
+
+  private async finishNarration(
+    patientId: string,
+    text: string,
+    narration: Awaited<ReturnType<typeof buildNarration>>,
+    actor?: { userId?: string; patientSessionId?: string }
+  ) {
+    const n = narration!;
+
+    // Persist the turn; the primary supporting memory id (earliest in the story)
+    // is stored on the companion message, satisfying the "store its supporting
+    // memoryId" rule. The full list of used ids is returned in the response.
+    const conversation = await prisma.$transaction(async (tx) => {
+      let conv = await tx.conversation.findFirst({ where: { patientId }, orderBy: { createdAt: 'desc' } });
+      if (!conv) {
+        conv = await tx.conversation.create({
+          data: { patientId, userId: actor?.userId || null, patientSessionId: actor?.patientSessionId || null }
+        });
+      }
+      await tx.message.create({ data: { conversationId: conv.id, senderType: SenderType.USER, messageText: text } });
+      await tx.message.create({
+        data: {
+          conversationId: conv.id,
+          senderType: SenderType.COMPANION,
+          messageText: n.reply,
+          relatedMemoryId: n.supportingMemoryId,
+          retrievalScore: null
+        }
+      });
+      return conv;
+    });
+
+    const serialized = n.memories.slice(0, 6).map((m) => this.serializeMemory(m));
+
+    return {
+      conversationId: conversation.id,
+      reply: n.reply,
+      memoryCard: serialized[0] || null,
+      suggestedMemories: serialized,
+      suggestedPrompts: [
+        'Tell me more about my family',
+        'Tell me about my childhood',
+        'Tell me my life story'
+      ],
+      suggestedRoutine: [],
+      retrieval: {
+        supportingMemoryId: n.supportingMemoryId,
+        score: null,
+        ...embeddingService.metadata
+      },
+      answerSource: n.answerSource,
+      // The narration path returns the full list of memory ids it narrated from.
+      usedMemoryIds: n.usedMemoryIds,
+      grounding: {
+        source: n.answerSource,
+        mode: 'narration',
+        scope: n.scopeLabel,
+        usedVerifiedMemory: n.usedMemoryIds.length > 0,
+        supportingMemoryId: n.supportingMemoryId,
+        usedMemoryIds: n.usedMemoryIds,
+        llm: n.llm
+      },
+      explanation:
+        n.answerSource === 'fallback'
+          ? 'No verified memory for this part of the life story; returned the safe fallback without generating anything.'
+          : n.answerSource === 'llm'
+            ? `Life-story narration of ${n.scopeLabel}, phrased by the ${n.llm?.provider} LLM strictly from verified memories (chronological, no invention).`
+            : `Deterministic life-story narration of ${n.scopeLabel}, built only from verified memories in chronological order.`
     };
   }
 }
