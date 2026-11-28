@@ -170,6 +170,7 @@ model PatientProfile {
   uploadIntents   MediaUpload[]
   auditLogs       AuditLog[]
   invitations     PatientInvitation[]
+  memoryLinks     MemoryLink[]
 
   @@index([fullName])
   @@index([isDemo])
@@ -256,6 +257,8 @@ model Memory {
   storybookMemories StorybookMemories[]
   verifications     Verification[]
   relatedMessages   Message[]
+  linksFrom         MemoryLink[]        @relation("MemoryLinkFrom")
+  linksTo           MemoryLink[]        @relation("MemoryLinkTo")
 
   @@index([patientId])
   @@index([patientId, verificationStatus])
@@ -334,6 +337,31 @@ model MemoryPeople {
   @@id([memoryId, personId])
   @@index([memoryId])
   @@index([personId])
+}
+
+// A curated, directional link between two memories of the same patient, with a
+// short human note explaining WHY they are connected (shared person, place,
+// object, or recurring theme). Used by the companion's life-story narration to
+// follow connections across a lifetime, e.g. a jasmine plant that travels from
+// a mother's courtyard to the patient's own garden. Links are only meaningful
+// between verified memories; narration filters to verified at read time.
+model MemoryLink {
+  id             String   @id @default(uuid())
+  patientId      String
+  fromMemoryId   String
+  toMemoryId     String
+  linkType       String // theme | person | place | object | ritual
+  connectionNote String
+  createdAt      DateTime @default(now())
+
+  patient    PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  fromMemory Memory         @relation("MemoryLinkFrom", fields: [fromMemoryId], references: [id], onDelete: Cascade)
+  toMemory   Memory         @relation("MemoryLinkTo", fields: [toMemoryId], references: [id], onDelete: Cascade)
+
+  @@unique([fromMemoryId, toMemoryId])
+  @@index([patientId])
+  @@index([fromMemoryId])
+  @@index([toMemoryId])
 }
 
 model Storybook {

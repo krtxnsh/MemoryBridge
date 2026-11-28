@@ -14,7 +14,12 @@ if (env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
+// Guard against re-entrancy: doing async work inside a `beforeExit` handler lets
+// the event loop drain and fire `beforeExit` again, which would loop forever.
+let hasDisconnected = false;
 process.on('beforeExit', async () => {
+  if (hasDisconnected) return;
+  hasDisconnected = true;
   await prisma.$disconnect();
   logger.info('Prisma disconnected.');
 });
